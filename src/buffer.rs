@@ -56,6 +56,30 @@ impl TextBuffer {
         self.cursor = new_cursor;
         //println!("{} cursor: {},{}", text, self.cursor.0, self.cursor.1);
     }
+    pub fn delete(&mut self, n: usize) -> Result<(), &str> {
+        if n == 0 { return Ok(()); }
+
+        if self.cursor == (0,0) { return Err("start of file"); }
+
+        // remove line
+        if self.cursor.1 == 0 {
+            let current_line = self.lines.remove(self.cursor.0);
+
+            // move cursor up and to end of line
+            self.cursor.0 -= 1;
+            self.cursor.1 = self.lines[self.cursor.0].len();
+
+            // append to previous line
+            self.lines[self.cursor.0] += &current_line;
+
+            self.edit_stack.push((self.cursor.0+1, current_line));
+        } else {
+            self.cursor.1 -= 1;
+            self.lines[self.cursor.0].remove(self.cursor.1);
+        }
+
+        self.delete(n-1)
+    }
 }
 
 
