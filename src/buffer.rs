@@ -1,4 +1,8 @@
+#![allow(unused)]
+
 use std::fmt::{Display, Formatter};
+use std::fs::File;
+use std::io::{self, BufRead, BufReader};
 
 // Contains text, cursor position, and edit history
 // Lowest level of interaction with text, provides functionality for creating/undoing edits
@@ -9,10 +13,28 @@ const LINE_BR: &str = "\n";
 
 pub struct TextBuffer {
     lines: Vec<String>,
-    edit_stack: Vec<(usize, String)>,
+    edit_stack: Vec<(usize, usize, Vec<String>)>,
     pub cursor: (usize, usize),
 }
+impl From<File> for TextBuffer {
+    fn from(file: File) -> Self {
+        let reader = BufReader::new(file);
+        let mut vec = Vec::new();
 
+        for line in reader.lines() {
+            if let Ok(line) = line { vec.push(line); }
+        }
+
+        // if file is empty
+        if vec.iter().len() == 0 { vec = vec!["".to_string()]; }
+
+        TextBuffer {
+            lines: vec,
+            edit_stack: Vec::new(),
+            cursor: (0, 0),
+        }
+    }
+}
 impl TextBuffer {
     pub fn new() -> TextBuffer {
         TextBuffer {
@@ -21,7 +43,6 @@ impl TextBuffer {
             cursor: (0, 0),
         }
     }
-
     pub fn expand_text(text: &String) -> Vec<String> {
         text.split(LINE_BR).map(String::from).collect()
     }
@@ -93,14 +114,11 @@ impl TextBuffer {
 
         // remove and add to edit stack
         let old_line = self.lines.remove(self.cursor.0);
-        self.edit_stack.push((self.cursor.0, old_line));
 
         // insert new text
         self.lines.splice(self.cursor.0..self.cursor.0, expanded);
 
-        if let Err(s) = self.cursor_move_by(Some(edit_line_count as isize -1), None) {
-            println!("{}", s);
-        }
+        let _ = self.cursor_move_by(Some(edit_line_count as isize -1), None);
         self.cursor_end_of_line();
         let _ = self.cursor_move_by(None, Some(extra_chars as isize *-1));
 
@@ -126,13 +144,34 @@ impl TextBuffer {
             // append to previous line
             self.lines[self.cursor.0] += &current_line;
 
-            self.edit_stack.push((self.cursor.0+1, current_line));
         } else {
             self.cursor_move_by(None, Some(-1))?;
             self.lines[self.cursor.0].remove(self.cursor.1);
         }
 
         self.delete(n-1)
+    }
+    pub fn delete_to(&mut self, r: usize, c: usize) -> Result<(), String> {
+        // check bounds
+        if self.lines.iter().len() <= r { return Err("".to_string()); }
+        if self.lines[r].len() < c { return Err("".to_string()); }
+
+        let char_count = self.lines[self.cursor.0].len() - self.cursor.1;
+        if r == self.cursor.0 {
+            self.cursor_to(None, Some(c))?;
+            self.delete(char_count)?;
+            return Ok(());
+        }
+
+
+        // TODO: get char count across multiple lines
+        // set cursor pos to end and delete char count
+
+        // Or just do it a different way...
+
+        // Also support deleting in the other direction
+
+        Ok(())
     }
 }
 
