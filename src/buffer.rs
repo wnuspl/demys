@@ -10,7 +10,7 @@ const LINE_BR: &str = "\n";
 
 
 
-
+#[derive(Clone)]
 pub struct TextBuffer {
     lines: Vec<String>,
     edit_stack: Vec<(usize, usize, Vec<String>)>,
@@ -46,6 +46,24 @@ impl TextBuffer {
     pub fn expand_text(text: &String) -> Vec<String> {
         text.split(LINE_BR).map(String::from).collect()
     }
+
+    pub fn get_lines(&self, start: usize, end: usize) -> &[String] {
+        if end > self.lines.len() {
+           &self.lines[start..]
+        } else {
+            &self.lines[start..end]
+        }
+    }
+
+
+
+
+
+
+    // CURSOR METHODS
+    // useful methods to move cursor around text buffer and get position
+
+    // Err if line/char doesn't exist
     pub fn cursor_to(&mut self, r: Option<usize>, c: Option<usize>) -> Result<(),String> {
         if let Some(row) = r {
             // oob check
@@ -61,6 +79,8 @@ impl TextBuffer {
 
         Ok(())
     }
+
+    // Err if line/char doesn't exist
     pub fn cursor_move_by(&mut self, r: Option<isize>, c: Option<isize>) -> Result<(),String> {
         if let Some(row) = r {
             // check that sum isn't negative
@@ -88,12 +108,26 @@ impl TextBuffer {
 
         Ok(())
     }
+
+    // will always succeed
     pub fn cursor_end_of_line(&mut self) {
         self.cursor.1 = self.lines[self.cursor.0].len();
     }
     pub fn cursor_start_of_line(&mut self) {
         self.cursor.1 = 0;
     }
+    pub fn get_cursor_row(&self) -> usize { self.cursor.0 }
+    pub fn get_cursor_col(&self) -> usize { self.cursor.1 }
+
+
+
+
+
+
+
+
+
+    // EDIT METHODS
     pub fn insert(&mut self, text: &str) -> Result<(),String> {
         let mut edit_line;
         let extra_chars; // chars in edit_line AFTER cursor
@@ -124,8 +158,6 @@ impl TextBuffer {
 
         Ok(())
     }
-
-
 
     // deletes n chars behind cursor
     pub fn delete(&mut self, n: usize) -> Result<(), String> {
@@ -174,6 +206,15 @@ impl TextBuffer {
         Ok(())
     }
 }
+
+
+
+
+
+
+
+
+
 
 
 impl Display for TextBuffer {
