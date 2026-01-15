@@ -8,7 +8,7 @@ use console::Term;
 use console::Key;
 use crate::buffer::TextBuffer;
 use crate::window::{TextTab, Window};
-use terminal_size::{Width, Height, terminal_size};
+use terminal_size::terminal_size;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
