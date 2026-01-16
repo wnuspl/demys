@@ -223,7 +223,6 @@ impl Tab for FSTab {
     }
 
     fn cursor_location(&self) -> Option<(usize, usize)> {
-        println!("{}", self.line);
         Some((self.line, 0))
     }
 
