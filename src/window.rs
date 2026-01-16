@@ -1,18 +1,20 @@
 use std::fs::read_dir;
 use std::path::PathBuf;
+use console::Key;
 use crate::buffer::TextBuffer;
 
 
+// holds list of tabs, as well as file system if no tabs are open
+// basically just forwards inputs, display requests to correct tab
 pub struct Window {
     pub tabs: Vec<TextTab>,
     pub current_tab: Option<usize>,
     fs_tab: FSTab,
-    width: usize, // in chars
-    height: usize, // in chars
     wrap_text: bool,
 }
 
 struct FSTab {
+    line: usize,
     dir: PathBuf
 }
 
@@ -23,77 +25,83 @@ pub struct TextTab {
 
 trait Tab {
     fn name(&self) -> String;
-    fn display(&self) -> String;
+
+    // returns string representation of tab
+    fn display(&self, width: usize, height: usize) -> String;
+    fn input(&mut self, key: Key) -> Result<(),String> { Ok(()) }
+
+    // none if cursor should be hidden (0 is row, 1 is col)
+    fn cursor_location(&self) -> Option<(usize, usize)> { None }
+
+    // wraps text to new line past width
+    // helper function for Tab::display
+    fn wrap(text: &str, width: usize) -> String {
+        let mut out = String::new();
+        for line in text.split("\n") {
+            // loop until remaining string can be fit
+            let mut split = Vec::new();
+            let mut remaining: String = line.to_string();
+            while remaining.len() > width {
+                split.push(remaining[..width].to_string());
+                remaining.replace_range(0..width, "");
+            }
+
+            split.push(remaining);
+            out += &split.join("\n");
+        }
+        out
+    }
 }
 
+
+
+
+
+
 impl Window {
-    pub fn new(width: usize, height: usize, dir: PathBuf) -> Window {
+    pub fn new() -> Window {
         Window {
-            tabs: Vec::new(),
+            tabs: vec![TextTab::new(TextBuffer::new(), "main".to_string())],
+           // current_tab: Some(0),
             current_tab: None,
-            fs_tab: FSTab::new(dir),
-            width,
-            height,
+            fs_tab: FSTab::new("/".into()),
             wrap_text: false,
+        }
+    }
+
+    pub fn input(&mut self, key: Key) -> Result<(),String> {
+        if let Some(tab) = self.current_tab {
+            self.tabs[tab].input(key)
+        } else {
+            self.fs_tab.input(key)
         }
     }
 
 
     // calls appropriate tab to get text,
     // wraps or cuts to fit width/height
-    pub fn display(&self) -> String {
-        // Get data
-        let text;
+    pub fn display(&self, width: usize, height: usize) -> String {
         if let Some(tab) = self.current_tab {
-            text = self.tabs[tab].display();
+            self.tabs[tab].display(width, height)
         } else {
-            text = self.fs_tab.display();
+            self.fs_tab.display(width, height)
         }
+    }
 
-        let mut out = String::new();
-
-        //let text = self.tabs[self.current_tab.unwrap()].get_lines(0,self.height);
-        let mut reached_limit = false;
-        let mut line_breaks = 0;
-        for line in text.split("\n") {
-            line_breaks += 1;
-
-
-            // wrap/cut string
-            let fitted_string: String;
-            if self.wrap_text {
-
-                // loop until remaining string can be fit
-                let mut split = Vec::new();
-                let mut remaining: String = line.to_string();
-                while remaining.len() > self.width {
-                    split.push(remaining[..self.width].to_string());
-                    remaining.replace_range(0..self.width, "");
-                    line_breaks += 1;
-
-                    if line_breaks >= self.height {
-                        reached_limit = true;
-                        break;
-                    }
-                }
-
-                split.push(remaining);
-                fitted_string = split.join("\n   ");
-            } else {
-                fitted_string = if self.width >= line.len() { line.to_string() } else { line[..self.width].to_string() }
-            }
-
-            // add fitted with new line
-            out += &format!("{}\n",fitted_string);
-
-            if reached_limit {
-                break;
-            }
+    pub fn cursor_location(&self) -> Option<(usize, usize)> {
+        if let Some(tab) = self.current_tab {
+            self.tabs[tab].cursor_location()
+        } else {
+            self.fs_tab.cursor_location()
         }
-
-        out
     }
 }
+
+
+
+
+
+
 
 
 // TEXT TAB IMPL
@@ -108,34 +116,59 @@ impl Tab for TextTab {
     fn name(&self) -> String {
         self.name.clone()
     }
-    fn display(&self) -> String {
+    fn display(&self, width: usize, height: usize) -> String {
         let raw = format!("{}",self.tb);
         let mut out = String::new();
 
         // add line numbers
         let mut line_number = 0;
         for line in raw.split("\n") {
+
             line_number += 1;
-            out += &format!("{} | {}\n", line_number, line);
+            out += &format!("{} | {}\n", line_number, Self::wrap(line, width));
         }
 
         out
     }
+    fn input(&mut self, key: Key) -> Result<(), String> {
+        match key {
+            Key::Backspace => self.tb.delete(1),
+            Key::Enter => self.tb.insert("\n"),
+            Key::Char(ch) => self.tb.insert(&ch.to_string()),
+            _ => Err("no match for provided key".to_string())
+        }
+    }
+    fn cursor_location(&self) -> Option<(usize, usize)> {
+        Some((self.tb.cursor.0, self.tb.cursor.1+4))
+    }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // FILE SYSTEM TAB IMPL
 // allows navigation of filesystem to open files
 impl FSTab {
     pub fn new(dir: PathBuf) -> FSTab {
-        FSTab { dir }
+        FSTab { line: 0, dir }
     }
 }
 impl Tab for FSTab {
     fn name(&self) -> String {
         "File Explorer".to_string()
     }
-    fn display(&self) -> String {
+    fn display(&self, width: usize, height: usize) -> String {
         let mut out = String::new();
 
         if let Ok(dir_iter) = read_dir(&self.dir) {
@@ -158,4 +191,40 @@ impl Tab for FSTab {
 
         out
     }
+
+
+    fn input(&mut self, key: Key) -> Result<(), String> {
+        match key {
+            Key::ArrowUp | Key::Char('k') => {
+                if self.line > 0 { self.line -= 1; Ok(()) }
+                else { Err("".to_string() )}
+            },
+            Key::ArrowDown | Key::Char('j') => {
+                // get num of entries
+                let dir_len = if let Ok(mut dir_iter) = read_dir(&self.dir) {
+                    dir_iter.count()
+                } else { 1 };
+
+                if self.line < dir_len-1 { self.line += 1; Ok(()) }
+                else { Err("".to_string() )}
+            },
+            Key::Enter => {
+                // change dir to selected
+                if let Ok(mut dir_iter) = read_dir(&self.dir) {
+                    let selected = dir_iter.nth(self.line).unwrap().unwrap().path();
+                    self.dir = selected;
+                }
+
+                Ok(())
+            }
+            _ => Err("no match for provided key".to_string())
+        }
+
+    }
+
+    fn cursor_location(&self) -> Option<(usize, usize)> {
+        println!("{}", self.line);
+        Some((self.line, 0))
+    }
+
 }
