@@ -1,32 +1,34 @@
-mod buffer;
-mod window;
-mod window_manager;
-
 use std::env;
 use std::fs::File;
 use std::path::Path;
 use console::Term;
 use console::Key;
-use crate::buffer::TextBuffer;
-use crate::window::{TextTab, Window};
+use demys::buffer::TextBuffer;
+use demys::window::{TextTab, Window};
 use terminal_size::terminal_size;
-use crate::window_manager::{WindowLayout, WindowManager};
+use demys::GridPos;
+use demys::window_manager::{WindowLayout, WindowManager};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+
     let size = terminal_size();
     let terminal_width = size.unwrap().0.0 as usize;
     let terminal_height = size.unwrap().1.0 as usize;
+    let terminal_dim = GridPos::from((terminal_height, terminal_width));
 
 
 
     // start with window
     let mut window_manager = WindowManager::new(terminal_width, terminal_height);
 
+    window_manager.layout.split();
+    window_manager.layout.split();
+
     // get term handle and write initial file state
     let mut term = Term::stdout();
-    window_manager.display(&mut term);
+    window_manager.display(&mut term, terminal_dim);
 
 
 
@@ -39,7 +41,7 @@ fn main() {
         if let Key::Escape = key { break; }
 
         window_manager.input(key);
-        window_manager.display(&mut term);
+        window_manager.display(&mut term, terminal_dim);
     }
 
 }

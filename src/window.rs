@@ -17,7 +17,7 @@ pub struct TextTab {
     name: String
 }
 
-pub(crate) trait Window {
+pub trait Window {
     fn name(&self) -> String;
 
     // returns string representation of tab
