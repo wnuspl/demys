@@ -26,6 +26,7 @@ fn main() {
     window_manager.layout.split(true);
     window_manager.layout.split(true);
     window_manager.layout.split(false);
+    window_manager.layout.split(true);
 
     // get term handle and write initial file state
     let mut term = Term::stdout();

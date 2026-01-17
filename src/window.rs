@@ -2,8 +2,7 @@ use std::fs::read_dir;
 use std::path::PathBuf;
 use console::Key;
 use crate::buffer::TextBuffer;
-
-
+use crate::GridPos;
 // holds list of tabs, as well as file system if no tabs are open
 // basically just forwards inputs, display requests to correct tab
 
@@ -25,7 +24,7 @@ pub trait Window {
     fn input(&mut self, key: Key) -> Result<(),String> { Ok(()) }
 
     // none if cursor should be hidden (0 is row, 1 is col)
-    fn cursor_location(&self) -> Option<(usize, usize)> { None }
+    fn cursor_location(&self) -> Option<GridPos> { None }
 
     // wraps text to new line past width
     // helper function for Tab::display
@@ -85,8 +84,8 @@ impl Window for TextTab {
             _ => Err("no match for provided key".to_string())
         }
     }
-    fn cursor_location(&self) -> Option<(usize, usize)> {
-        Some((self.tb.cursor.0, self.tb.cursor.1+4))
+    fn cursor_location(&self) -> Option<GridPos> {
+        Some((self.tb.cursor.0, self.tb.cursor.1+4).into())
     }
 }
 
@@ -94,6 +93,21 @@ impl Window for TextTab {
 
 
 
+pub struct CharTab(pub char);
+
+impl Window for CharTab {
+    fn name(&self) -> String { "char".to_string() }
+    fn display(&self, width: usize, height: usize) -> String {
+        let mut out = String::new();
+        for i in 0..height {
+            for j in 0..width {
+                out += &self.0.to_string();
+            }
+            out += "\n";
+        }
+        out
+    }
+}
 
 
 
@@ -169,8 +183,8 @@ impl Window for FSTab {
 
     }
 
-    fn cursor_location(&self) -> Option<(usize, usize)> {
-        Some((self.line, 0))
+    fn cursor_location(&self) -> Option<GridPos> {
+        Some((self.line, 0).into())
     }
 
 }

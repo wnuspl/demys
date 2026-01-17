@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::ops::Add;
 
 pub mod buffer;
 pub mod window;
@@ -29,5 +30,15 @@ impl From<GridPos> for (usize,usize) {
 impl Display for GridPos {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{})", self.row, self.col)
+    }
+}
+
+impl Add for GridPos {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        Self {
+            row: self.row+rhs.row,
+            col: self.col+rhs.col
+        }
     }
 }
