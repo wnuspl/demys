@@ -21,10 +21,11 @@ fn main() {
 
 
     // start with window
-    let mut window_manager = WindowManager::new(terminal_width, terminal_height);
+    let mut window_manager = WindowManager::new();
 
-    window_manager.layout.split();
-    window_manager.layout.split();
+    window_manager.layout.split(true);
+    window_manager.layout.split(true);
+    window_manager.layout.split(false);
 
     // get term handle and write initial file state
     let mut term = Term::stdout();

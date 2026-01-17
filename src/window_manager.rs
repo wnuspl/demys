@@ -1,5 +1,6 @@
 use std::alloc::Layout;
 use std::error::Error;
+use std::mem;
 use crate::window::{TextTab, Window};
 use crate::window::FSTab;
 use console::Key;
@@ -15,6 +16,7 @@ pub struct WindowManager {
 
 
 // maps windows to correct shape/position in terminal
+#[derive(Clone)]
 pub enum WindowLayout {
     Horizontal {
         body: Vec<Box<WindowLayout>>,
@@ -29,10 +31,13 @@ pub enum WindowLayout {
 
 
 impl WindowManager {
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn new() -> Self {
         Self {
             layout: WindowLayout::new(),
-            windows: vec![Box::new(FSTab::new("/".into())), Box::new(TextTab::new(TextBuffer::new(), "hi".to_string())), Box::new(TextTab::new(TextBuffer::new(), "hi".to_string()))],
+            windows: vec![Box::new(FSTab::new("/".into())),
+                          Box::new(FSTab::new("/".into())),
+                          Box::new(TextTab::new(TextBuffer::new(), "hi".to_string())),
+                          Box::new(TextTab::new(TextBuffer::new(), "hi".to_string()))],
             focused_window: 0,
         }
     }
@@ -106,13 +111,13 @@ impl WindowLayout {
     pub fn new() -> Self {
         Self::Single
     }
-    pub fn vsplit() -> Self {
+    fn vsplit() -> Self {
         Self::Vertical {
             body: vec![Box::new(WindowLayout::new()), Box::new(WindowLayout::new())],
             widths: vec![0.5, 0.5]
         }
     }
-    pub fn hsplit() -> Self {
+    fn hsplit() -> Self {
         Self::Horizontal {
             body: vec![Box::new(WindowLayout::new()), Box::new(WindowLayout::new())],
             heights: vec![0.5, 0.5]
@@ -122,27 +127,48 @@ impl WindowLayout {
 
     // adds another split to layout, if single, defaults to vertical split
     // new window is 1/n size where n is new number of splits
-    pub fn split(&mut self) {
+    pub fn split(&mut self, vertical:bool) {
         match self {
-            Self::Single => { *self = WindowLayout::vsplit(); },
+            Self::Single => *self = if vertical { WindowLayout::vsplit() } else { WindowLayout::hsplit() },
             Self::Vertical { body, widths } => {
-                // set width to 1/n
-                let w = 1.0/(body.len() as f32);
-                widths.push(w);
-                *widths = to_dist_vec(widths);
+                if vertical {
+                    // set width to 1/n
+                    let w = 1.0 / (body.len() as f32);
+                    widths.push(w);
+                    *widths = to_dist_vec(widths);
 
-                body.push(Box::new(WindowLayout::Single));
+                    body.push(Box::new(WindowLayout::Single));
+                } else {
+                    // self becomes inner layout, create 2 way hsplit
+                    let inner = mem::replace(self, WindowLayout::hsplit());
+                    *self.get_body_mut(0).unwrap() = Box::new(inner);
+                }
             },
             Self::Horizontal { body, heights } => {
-                // set height to 1/n
-                let h = 1.0/(body.len() as f32);
-                heights.push(h);
-                *heights = to_dist_vec(heights);
+                if ! vertical {
+                    // set height to 1/n
+                    let h = 1.0/(body.len() as f32);
+                    heights.push(h);
+                    *heights = to_dist_vec(heights);
 
-                body.push(Box::new(WindowLayout::Single));
+                    body.push(Box::new(WindowLayout::Single));
+                } else {
+                    // self becomes inner layout, create 2 way vsplit
+                    let inner = mem::replace(self, WindowLayout::vsplit());
+                    *self.get_body_mut(0).unwrap() = Box::new(inner);
+                }
             }
         }
+    }
 
+    pub fn get_body_mut(&mut self, idx: usize) -> Option<&mut Box<WindowLayout>> {
+        match self {
+            WindowLayout::Single => { None },
+            WindowLayout::Vertical { body, .. }
+            | WindowLayout::Horizontal { body, .. } => {
+                body.get_mut(idx)
+            }
+        }
     }
 
     // main function of window layout
@@ -173,6 +199,7 @@ impl WindowLayout {
             // Fixed height, variable width
             Self::Vertical { body, widths } => {
                 let mut horizontal_offset = 0;
+
                 for (layout, width_percent) in body.iter().zip(widths.iter()) {
                     let w = (width_percent*dim.col as f32) as usize;
                     out.append(&mut layout.map_indexes(
