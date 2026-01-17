@@ -1,12 +1,13 @@
 use std::error::Error;
 use crate::window::Window;
+use crate::window::FSTab;
 use console::Key;
 use console::Term;
 
 
 pub struct WindowManager {
     layout: WindowLayout,
-    pub windows: Vec<Window>,
+    pub windows: Vec<Box<dyn Window>>,
     focused_window: usize,
 }
 
@@ -27,7 +28,7 @@ impl WindowManager {
     pub fn new(width: usize, height: usize) -> Self {
         Self {
             layout: WindowLayout::new(width, height, (0,0)),
-            windows: vec![Window::new()],
+            windows: vec![Box::new(FSTab::new("/".into()))],
             focused_window: 0,
         }
     }
@@ -80,9 +81,8 @@ impl WindowManager {
 
 impl WindowLayout {
     pub fn new(width: usize, height: usize, start: (usize, usize)) -> Self {
-        Self { format: LayoutFormat::Vertical(vec![width/2, width/2]), width, height, start }
+        Self { format: LayoutFormat::Single, width, height, start }
     }
-
 
     // returns Vec<((width, height), (row, col))>
     pub fn get_positions(&self) -> Vec<((usize, usize), (usize, usize))> {

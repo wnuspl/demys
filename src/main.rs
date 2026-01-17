@@ -24,11 +24,6 @@ fn main() {
     // start with window
     let mut window_manager = WindowManager::new(terminal_width, terminal_height);
 
-    let mut tb = Window::new();
-    tb.tabs.push(TextTab::new(TextBuffer::new(), "main".to_string()));
-    tb.current_tab = Some(0);
-    window_manager.windows.push(tb);
-
     // get term handle and write initial file state
     let mut term = Term::stdout();
     window_manager.display(&mut term);

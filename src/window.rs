@@ -6,14 +6,8 @@ use crate::buffer::TextBuffer;
 
 // holds list of tabs, as well as file system if no tabs are open
 // basically just forwards inputs, display requests to correct tab
-pub struct Window {
-    pub tabs: Vec<TextTab>,
-    pub current_tab: Option<usize>,
-    fs_tab: FSTab,
-    wrap_text: bool,
-}
 
-struct FSTab {
+pub struct FSTab {
     line: usize,
     dir: PathBuf
 }
@@ -23,7 +17,7 @@ pub struct TextTab {
     name: String
 }
 
-trait Tab {
+pub(crate) trait Window {
     fn name(&self) -> String;
 
     // returns string representation of tab
@@ -35,7 +29,7 @@ trait Tab {
 
     // wraps text to new line past width
     // helper function for Tab::display
-    fn wrap(text: &str, width: usize) -> String {
+    fn wrap(&self, text: &str, width: usize) -> String {
         let mut out = String::new();
         for line in text.split("\n") {
             // loop until remaining string can be fit
@@ -57,53 +51,6 @@ trait Tab {
 
 
 
-
-impl Window {
-    pub fn new() -> Window {
-        Window {
-            tabs: vec![TextTab::new(TextBuffer::new(), "main".to_string())],
-           // current_tab: Some(0),
-            current_tab: None,
-            fs_tab: FSTab::new("/".into()),
-            wrap_text: false,
-        }
-    }
-
-    pub fn input(&mut self, key: Key) -> Result<(),String> {
-        if let Some(tab) = self.current_tab {
-            self.tabs[tab].input(key)
-        } else {
-            self.fs_tab.input(key)
-        }
-    }
-
-
-    // calls appropriate tab to get text,
-    // wraps or cuts to fit width/height
-    pub fn display(&self, width: usize, height: usize) -> String {
-        if let Some(tab) = self.current_tab {
-            self.tabs[tab].display(width, height)
-        } else {
-            self.fs_tab.display(width, height)
-        }
-    }
-
-    pub fn cursor_location(&self) -> Option<(usize, usize)> {
-        if let Some(tab) = self.current_tab {
-            self.tabs[tab].cursor_location()
-        } else {
-            self.fs_tab.cursor_location()
-        }
-    }
-}
-
-
-
-
-
-
-
-
 // TEXT TAB IMPL
 // Holds text buffers
 impl TextTab {
@@ -112,7 +59,7 @@ impl TextTab {
     }
 }
 
-impl Tab for TextTab {
+impl Window for TextTab {
     fn name(&self) -> String {
         self.name.clone()
     }
@@ -125,7 +72,7 @@ impl Tab for TextTab {
         for line in raw.split("\n") {
 
             line_number += 1;
-            out += &format!("{} | {}\n", line_number, Self::wrap(line, width));
+            out += &format!("{} | {}\n", line_number, self.wrap(line, width));
         }
 
         out
@@ -164,7 +111,7 @@ impl FSTab {
         FSTab { line: 0, dir }
     }
 }
-impl Tab for FSTab {
+impl Window for FSTab {
     fn name(&self) -> String {
         "File Explorer".to_string()
     }
