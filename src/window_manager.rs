@@ -1,16 +1,21 @@
 use std::alloc::Layout;
 use std::error::Error;
+use std::io::Stdout;
 use std::mem;
 use crate::window::{CharTab, TextTab, Window};
-use crate::window::FSTab;
-use console::Key;
-use console::Term;
+use crossterm::cursor::{Hide, MoveTo, Show};
+use crossterm::{queue, QueueableCommand};
+use crossterm::event::KeyCode;
+use crossterm::style::Print;
+use crossterm::terminal::{Clear, ClearType};
 use crate::buffer::TextBuffer;
 use crate::GridPos;
+use crate::style::Style;
 
 pub struct WindowManager {
     pub layout: WindowLayout,
     pub windows: Vec<Box<dyn Window>>,
+    pub style: Style,
     focused_window: usize,
 }
 
@@ -35,13 +40,13 @@ pub enum LayoutItem {
         start: GridPos
     },
     VerticalBorder {
-        length: usize,
-        thickness: usize,
+        length: u16,
+        thickness: u16,
         start: GridPos
     },
     HorizontalBorder {
-       length: usize,
-       thickness: usize,
+       length: u16,
+       thickness: u16,
        start: GridPos
     }
 }
@@ -51,17 +56,17 @@ impl WindowManager {
     pub fn new() -> Self {
         Self {
             layout: WindowLayout::new(),
-            windows: vec![Box::new(FSTab::new("/".into())),
-                          Box::new(TextTab::new(TextBuffer::new(), "hi".to_string())),
+            windows: vec![Box::new(CharTab('.')),
                           Box::new(CharTab('X')),
                 ],
+            style: Style::new(),
             focused_window: 0,
         }
     }
 
     // sends input to focused window
-    pub fn input(&mut self, key: Key) -> Result<(),String> {
-        if let Key::Tab = key {
+    pub fn input(&mut self, key: KeyCode) -> Result<(),String> {
+        if let KeyCode::Tab = key {
             self.focused_window += 1;
             if self.focused_window >= self.windows.len() {
                 self.focused_window = 0;
@@ -72,10 +77,14 @@ impl WindowManager {
         }
     }
 
-    pub fn display(&self, term: &mut Term, dim: GridPos) {
-        let _ = term.clear_screen();
+    pub fn display(&self, stdout: &mut Stdout, dim: GridPos) {
+        //clear screen
+        let _ = stdout.queue(Clear(ClearType::Purge));
+
         // get locations
         let layout = self.layout.map_indexes(dim, (0,0).into());
+
+
 
 
         let mut cursor_location = None;
@@ -83,10 +92,12 @@ impl WindowManager {
         let mut windows = self.windows.iter().enumerate();
         for item in layout {
             match item {
+                // Display window
                 LayoutItem::Window { dim, start } => {
                     if let Some((i, window)) = windows.next() {
-                        let text = window.display(dim.col, dim.row);
-                        self.display_window(term, text, dim, start);
+                        let text = window.style(dim);
+
+                        self.style.queue(stdout, text, start, dim);
 
                         if i == self.focused_window {
                             if let Some(cl) = window.cursor_location() {
@@ -95,20 +106,11 @@ impl WindowManager {
                         }
                     }
                 },
+
+                // Display borders
                 LayoutItem::VerticalBorder { length, thickness, start } => {
-                    for i in 0..length {
-                        let _ = term.move_cursor_to(start.col, start.row + i);
-                        print!("|");
-                    }
                 },
                 LayoutItem::HorizontalBorder { length, thickness, start } => {
-                    for i in 0..thickness {
-                        let _ = term.move_cursor_to(start.col, start.row + i);
-                        for j in 0..length {
-                            print!("-");
-                        }
-                    }
-
                 }
             }
 
@@ -116,27 +118,15 @@ impl WindowManager {
 
 
         if let Some(cursor_location) = cursor_location {
-            let _ = term.show_cursor();
-            let _ = term.move_cursor_to(cursor_location.col, cursor_location.row);
+            let _ = queue!(stdout,
+                Show,
+                //MoveTo(cursor_location.col, cursor_location.row)
+            );
         } else {
-            let _ = term.hide_cursor();
+            let _ = stdout.queue(Hide);
         }
 
 
-    }
-
-    fn display_window(&self, term: &mut Term, text: String, dim: GridPos, start: GridPos) {
-        let lines = text.split("\n");
-
-
-        for (i, line) in lines.take(dim.row).enumerate() {
-            // move cursor to start of line
-            let _ = term.move_cursor_to(start.col, start.row+i);
-
-            // trim chars to avoid overflow
-            let trimmed: String = line.chars().take(dim.col).collect();
-            print!("{}", trimmed);
-        }
     }
 }
 
@@ -150,7 +140,7 @@ fn to_dist_vec(vec: &Vec<f32>) -> Vec<f32> {
 
 
 impl WindowLayout {
-    const BORDER_THICKNESS: usize = 1;
+    const BORDER_THICKNESS: u16 = 1;
     pub fn new() -> Self {
         Self::Single
     }
@@ -216,6 +206,7 @@ impl WindowLayout {
         }
     }
 
+
     // main function of window layout
     // maps window to physical position in terminal based on size
     // return is Vec<dim, start>
@@ -224,17 +215,18 @@ impl WindowLayout {
         match &self {
             Self::Single => {
                 out.push(LayoutItem::Window{dim, start});
+                //println!("dim: {}, start: {}", dim, start);
             }
 
             // Fixed width, variable height
             Self::Horizontal { body, heights } => {
-                let available_height = dim.row-(body.len()-1)*Self::BORDER_THICKNESS;
+                let available_height = dim.row-(body.len() as u16-1)*Self::BORDER_THICKNESS;
                 let mut vertical_offset = 0;
 
                 let mut iter = body.iter().zip(heights.iter()).peekable();
 
                 while let Some((layout, height_percent)) = iter.next() {
-                    let h = (height_percent*available_height as f32) as usize;
+                    let h = (height_percent*available_height as f32) as u16;
 
                     out.append(&mut layout.map_indexes(
                         (h, dim.col).into(),                                // size
@@ -255,15 +247,17 @@ impl WindowLayout {
             },
 
 
+
+
             // Fixed height, variable width
             Self::Vertical { body, widths } => {
-                let available_width = dim.col-(body.len()-1)*Self::BORDER_THICKNESS;
+                let available_width = dim.col-(body.len() as u16-1)*Self::BORDER_THICKNESS;
                 let mut horizontal_offset = 0;
 
                 let mut iter = body.iter().zip(widths.iter()).peekable();
 
                 while let Some((layout, width_percent)) = iter.next() {
-                    let w = (width_percent*dim.col as f32) as usize;
+                    let w = (width_percent*dim.col as f32) as u16;
                     out.append(&mut layout.map_indexes(
                         (dim.row, w).into(),                                // size
                         (start.row, start.col+horizontal_offset).into()     // start
@@ -278,7 +272,6 @@ impl WindowLayout {
                         });
                         horizontal_offset += Self::BORDER_THICKNESS;
                     }
-
                 }
             },
             _ => {}

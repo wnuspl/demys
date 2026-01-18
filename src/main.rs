@@ -1,49 +1,47 @@
+use std::io::{Write, stdout};
 use std::env;
-use std::fs::File;
-use std::path::Path;
-use console::Term;
-use console::Key;
-use demys::buffer::TextBuffer;
-use demys::window::{TextTab, Window};
-use terminal_size::terminal_size;
 use demys::GridPos;
-use demys::window_manager::{WindowLayout, WindowManager};
+use demys::window_manager::WindowManager;
+
+use crossterm::{cursor, queue, terminal, QueueableCommand, event};
+use crossterm::event::{read, Event, KeyCode, KeyEvent};
+use crossterm::style::Print;
+use crossterm::terminal::enable_raw_mode;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+    let mut stdout = stdout();
 
-    let size = terminal_size();
-    let terminal_width = size.unwrap().0.0 as usize;
-    let terminal_height = size.unwrap().1.0 as usize;
-    let terminal_dim = GridPos::from((terminal_height, terminal_width));
-
+    crossterm::terminal::enable_raw_mode().unwrap();
 
 
     // start with window
     let mut window_manager = WindowManager::new();
 
     window_manager.layout.split(true);
-    window_manager.layout.split(true);
-    window_manager.layout.split(false);
-    window_manager.layout.split(true);
+    //window_manager.layout.split(true);
 
     // get term handle and write initial file state
-    let mut term = Term::stdout();
-    window_manager.display(&mut term, terminal_dim);
+    let size = crossterm::terminal::size().unwrap();
+    let mut terminal_dim= GridPos::from(size).transpose();
+    window_manager.display(&mut stdout, terminal_dim);
 
+    stdout.flush();
 
+    loop {
+        match read().unwrap() {
+            Event::Key(KeyEvent { code, .. }) => {
+                if let KeyCode::Esc = code { break; }
 
-    // NOTE:
-    // reverts back to direct textbuffer reference here
-
-
-
-    while let Ok(key) = term.read_key_raw() {
-        if let Key::Escape = key { break; }
-
-        window_manager.input(key);
-        window_manager.display(&mut term, terminal_dim);
+                window_manager.input(code);
+            }
+            Event::Resize(w, h) => {
+                terminal_dim = (h as u16, w as u16).into();
+            }
+            _ => break
+        }
+        window_manager.display(&mut stdout, terminal_dim);
+        stdout.flush();
     }
-
 }

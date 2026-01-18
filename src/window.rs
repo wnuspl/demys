@@ -1,13 +1,14 @@
 use std::fs::read_dir;
 use std::path::PathBuf;
-use console::Key;
+use crossterm::event::KeyCode;
 use crate::buffer::TextBuffer;
 use crate::GridPos;
+use crate::style::{StyleItem, StyledString};
 // holds list of tabs, as well as file system if no tabs are open
 // basically just forwards inputs, display requests to correct tab
 
 pub struct FSTab {
-    line: usize,
+    line: u16,
     dir: PathBuf
 }
 
@@ -20,15 +21,16 @@ pub trait Window {
     fn name(&self) -> String;
 
     // returns string representation of tab
-    fn display(&self, width: usize, height: usize) -> String;
-    fn input(&mut self, key: Key) -> Result<(),String> { Ok(()) }
+    fn style(&self, dim: GridPos) -> StyledString;
+    fn input(&mut self, key: KeyCode) -> Result<(),String> { Ok(()) }
 
     // none if cursor should be hidden (0 is row, 1 is col)
     fn cursor_location(&self) -> Option<GridPos> { None }
 
     // wraps text to new line past width
     // helper function for Tab::display
-    fn wrap(&self, text: &str, width: usize) -> String {
+    fn wrap(&self, text: &str, width: u16) -> String {
+        let width = width as usize;
         let mut out = String::new();
         for line in text.split("\n") {
             // loop until remaining string can be fit
@@ -62,30 +64,31 @@ impl Window for TextTab {
     fn name(&self) -> String {
         self.name.clone()
     }
-    fn display(&self, width: usize, height: usize) -> String {
+    fn style(&self, dim: GridPos) -> StyledString {
         let raw = format!("{}",self.tb);
-        let mut out = String::new();
+        let mut out = StyledString(Vec::new());
 
         // add line numbers
         let mut line_number = 0;
         for line in raw.split("\n") {
 
             line_number += 1;
-            out += &format!("{} | {}\n", line_number, self.wrap(line, width));
+            out.0.push(StyleItem::Text(format!("{} | {}", line_number, self.wrap(line, dim.col))));
+            out.0.push(StyleItem::LineBreak);
         }
 
         out
     }
-    fn input(&mut self, key: Key) -> Result<(), String> {
+fn input(&mut self, key: KeyCode) -> Result<(), String> {
         match key {
-            Key::Backspace => self.tb.delete(1),
-            Key::Enter => self.tb.insert("\n"),
-            Key::Char(ch) => self.tb.insert(&ch.to_string()),
+            KeyCode::Backspace => self.tb.delete(1),
+            KeyCode::Enter => self.tb.insert("\n"),
+            KeyCode::Char(ch) => self.tb.insert(&ch.to_string()),
             _ => Err("no match for provided key".to_string())
         }
     }
     fn cursor_location(&self) -> Option<GridPos> {
-        Some((self.tb.cursor.0, self.tb.cursor.1+4).into())
+        Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16+4).into())
     }
 }
 
@@ -97,13 +100,14 @@ pub struct CharTab(pub char);
 
 impl Window for CharTab {
     fn name(&self) -> String { "char".to_string() }
-    fn display(&self, width: usize, height: usize) -> String {
-        let mut out = String::new();
-        for i in 0..height {
-            for j in 0..width {
-                out += &self.0.to_string();
+
+    fn style(&self, dim: GridPos) -> StyledString {
+        let mut out = StyledString(Vec::new());
+        for i in 0..dim.row {
+            for j in 0..dim.col {
+                out.0.push(StyleItem::Text(self.0.to_string()));
             }
-            out += "\n";
+            out.0.push(StyleItem::LineBreak);
         }
         out
     }
@@ -129,8 +133,8 @@ impl Window for FSTab {
     fn name(&self) -> String {
         "File Explorer".to_string()
     }
-    fn display(&self, width: usize, height: usize) -> String {
-        let mut out = String::new();
+    fn style(&self, dim: GridPos) -> StyledString {
+        let mut out = StyledString(Vec::new());
 
         if let Ok(dir_iter) = read_dir(&self.dir) {
             for entry in dir_iter {
@@ -144,7 +148,8 @@ impl Window for FSTab {
                         name.to_string()
                     };
 
-                    out += &format!("{}\n", display);
+                    out.0.push(StyleItem::Text(format!("{}", display)));
+                    out.0.push(StyleItem::LineBreak);
                 }
             }
         }
@@ -154,25 +159,25 @@ impl Window for FSTab {
     }
 
 
-    fn input(&mut self, key: Key) -> Result<(), String> {
+    fn input(&mut self, key: KeyCode) -> Result<(), String> {
         match key {
-            Key::ArrowUp | Key::Char('k') => {
+            KeyCode::Up | KeyCode::Char('k') => {
                 if self.line > 0 { self.line -= 1; Ok(()) }
                 else { Err("".to_string() )}
             },
-            Key::ArrowDown | Key::Char('j') => {
+            KeyCode::Down | KeyCode::Char('j') => {
                 // get num of entries
                 let dir_len = if let Ok(mut dir_iter) = read_dir(&self.dir) {
                     dir_iter.count()
                 } else { 1 };
 
-                if self.line < dir_len-1 { self.line += 1; Ok(()) }
+                if (self.line as usize) < dir_len-1 { self.line += 1; Ok(()) }
                 else { Err("".to_string() )}
             },
-            Key::Enter => {
+            KeyCode::Enter => {
                 // change dir to selected
                 if let Ok(mut dir_iter) = read_dir(&self.dir) {
-                    let selected = dir_iter.nth(self.line).unwrap().unwrap().path();
+                    let selected = dir_iter.nth(self.line as usize).unwrap().unwrap().path();
                     self.dir = selected;
                 }
 

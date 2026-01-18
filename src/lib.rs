@@ -4,26 +4,34 @@ use std::ops::Add;
 pub mod buffer;
 pub mod window;
 pub mod window_manager;
-
+mod style;
 
 #[derive(Clone,Copy)]
 pub struct GridPos {
-    row: usize,
-    col: usize
+    row: u16,
+    col: u16
 }
 
-impl From<(usize,usize)> for GridPos {
-    fn from(value: (usize,usize)) -> Self {
+impl From<(u16,u16)> for GridPos {
+    fn from(value: (u16,u16)) -> Self {
         Self {
             row: value.0,
             col: value.1
         }
     }
 }
-
-impl From<GridPos> for (usize,usize) {
+impl From<GridPos> for (u16,u16) {
     fn from(value: GridPos) -> Self {
         (value.row, value.col)
+    }
+}
+
+impl GridPos {
+    pub fn transpose(mut self) -> Self {
+        let temp = self.row;
+        self.row = self.col;
+        self.col = temp;
+        self
     }
 }
 
