@@ -1,8 +1,9 @@
 use std::alloc::Layout;
 use std::error::Error;
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use std::mem;
-use crate::window::{CharTab, TextTab, Window};
+use std::path::PathBuf;
+use crate::window::{CharTab, FSTab, TextTab, Window};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;
@@ -56,8 +57,8 @@ impl WindowManager {
     pub fn new() -> Self {
         Self {
             layout: WindowLayout::new(),
-            windows: vec![Box::new(CharTab('.')),
-                          Box::new(CharTab('X')),
+            windows: vec![Box::new(FSTab::new("/".into())),
+                          Box::new(CharTab('.'))
                 ],
             style: Style::new(),
             focused_window: 0,
@@ -80,6 +81,8 @@ impl WindowManager {
     pub fn display(&self, stdout: &mut Stdout, dim: GridPos) {
         //clear screen
         let _ = stdout.queue(Clear(ClearType::Purge));
+        let _ = stdout.queue(Clear(ClearType::All));
+        let _ = stdout.queue(MoveTo(0,0));
 
         // get locations
         let layout = self.layout.map_indexes(dim, (0,0).into());
@@ -99,6 +102,7 @@ impl WindowManager {
 
                         self.style.queue(stdout, text, start, dim);
 
+
                         if i == self.focused_window {
                             if let Some(cl) = window.cursor_location() {
                                 cursor_location = Some(cl + start);
@@ -109,6 +113,10 @@ impl WindowManager {
 
                 // Display borders
                 LayoutItem::VerticalBorder { length, thickness, start } => {
+                    for i in 0..length {
+                        stdout.queue(MoveTo(start.col, start.row+i));
+                        stdout.queue(Print("|"));
+                    }
                 },
                 LayoutItem::HorizontalBorder { length, thickness, start } => {
                 }
@@ -120,7 +128,7 @@ impl WindowManager {
         if let Some(cursor_location) = cursor_location {
             let _ = queue!(stdout,
                 Show,
-                //MoveTo(cursor_location.col, cursor_location.row)
+                MoveTo(cursor_location.col, cursor_location.row)
             );
         } else {
             let _ = stdout.queue(Hide);
@@ -215,7 +223,6 @@ impl WindowLayout {
         match &self {
             Self::Single => {
                 out.push(LayoutItem::Window{dim, start});
-                //println!("dim: {}, start: {}", dim, start);
             }
 
             // Fixed width, variable height
@@ -257,7 +264,7 @@ impl WindowLayout {
                 let mut iter = body.iter().zip(widths.iter()).peekable();
 
                 while let Some((layout, width_percent)) = iter.next() {
-                    let w = (width_percent*dim.col as f32) as u16;
+                    let w = (width_percent*available_width as f32) as u16;
                     out.append(&mut layout.map_indexes(
                         (dim.row, w).into(),                                // size
                         (start.row, start.col+horizontal_offset).into()     // start

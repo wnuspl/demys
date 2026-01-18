@@ -107,7 +107,7 @@ impl Window for CharTab {
             for j in 0..dim.col {
                 out.0.push(StyleItem::Text(self.0.to_string()));
             }
-            out.0.push(StyleItem::LineBreak);
+            if i+1 != dim.row { out.0.push(StyleItem::LineBreak); }
         }
         out
     }

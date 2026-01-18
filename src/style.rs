@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::io::Stdout;
 use crossterm::cursor::MoveTo;
 use crossterm::QueueableCommand;
@@ -29,6 +30,7 @@ impl Style {
 
     pub fn queue(&self, stdout: &mut Stdout, string: StyledString, start: GridPos, dim: GridPos) {
         let mut line = 0;
+        let _ = stdout.queue(MoveTo(start.col, start.row));
         for item in string.0.iter() {
             match item {
                 StyleItem::Text(s) => {

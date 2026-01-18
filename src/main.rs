@@ -3,10 +3,26 @@ use std::env;
 use demys::GridPos;
 use demys::window_manager::WindowManager;
 
-use crossterm::{cursor, queue, terminal, QueueableCommand, event};
+use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent};
 use crossterm::style::Print;
-use crossterm::terminal::enable_raw_mode;
+use crossterm::terminal::{enable_raw_mode, LeaveAlternateScreen};
+
+
+
+struct TuiGuard;
+
+impl Drop for TuiGuard {
+    fn drop(&mut self) {
+        let mut stdout = stdout();
+        // Best effort cleanup; ignore errors because we're in Drop.
+        let _ = terminal::disable_raw_mode();
+        let _ = execute!(stdout, cursor::Show, LeaveAlternateScreen);
+        let _ = stdout.flush();
+    }
+}
+
+
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,7 +36,6 @@ fn main() {
     let mut window_manager = WindowManager::new();
 
     window_manager.layout.split(true);
-    //window_manager.layout.split(true);
 
     // get term handle and write initial file state
     let size = crossterm::terminal::size().unwrap();
@@ -44,4 +59,6 @@ fn main() {
         window_manager.display(&mut stdout, terminal_dim);
         stdout.flush();
     }
+
+    let _drop = TuiGuard;
 }
