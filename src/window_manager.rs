@@ -3,11 +3,11 @@ use std::error::Error;
 use std::io::{Stdout, Write};
 use std::mem;
 use std::path::PathBuf;
-use crate::window::{CharTab, FSTab, TextTab, Window};
+use crate::window::{CharTab, FSTab, TextTab, Window, WindowRequest};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;
-use crossterm::style::Print;
+use crossterm::style::{Attribute, Print, ResetColor, SetAttribute};
 use crossterm::terminal::{Clear, ClearType};
 use crate::buffer::TextBuffer;
 use crate::GridPos;
@@ -78,6 +78,27 @@ impl WindowManager {
         }
     }
 
+    pub fn update(&mut self) {
+        let mut replacements = Vec::new();
+
+        for (i, window) in self.windows.iter_mut().enumerate() {
+            if let Some(requests) = window.poll() {
+                for request in requests {
+                    match request {
+                        WindowRequest::Redraw => {},
+                        WindowRequest::ReplaceWindow(w) => {
+                            replacements.push((i, w));
+                        }
+                    }
+                }
+            }
+        }
+
+        for (i, w) in replacements {
+            self.windows[i] = w;
+        }
+    }
+
     pub fn display(&self, stdout: &mut Stdout, dim: GridPos) {
         //clear screen
         let _ = stdout.queue(Clear(ClearType::Purge));
@@ -94,25 +115,26 @@ impl WindowManager {
 
         let mut windows = self.windows.iter().enumerate();
         for item in layout {
+            // reset styles
+            self.style.reset(stdout);
+
             match item {
                 // Display window
                 LayoutItem::Window { dim, start } => {
                     if let Some((i, window)) = windows.next() {
                         let text = window.style(dim);
-
                         self.style.queue(stdout, text, start, dim);
 
-
+                        // set cursor if focused
                         if i == self.focused_window {
-                            if let Some(cl) = window.cursor_location() {
-                                cursor_location = Some(cl + start);
-                            }
+                            if let Some(cl) = window.cursor_location() { cursor_location = Some(cl + start); }
                         }
                     }
                 },
 
                 // Display borders
                 LayoutItem::VerticalBorder { length, thickness, start } => {
+
                     for i in 0..length {
                         stdout.queue(MoveTo(start.col, start.row+i));
                         stdout.queue(Print("|"));

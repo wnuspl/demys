@@ -1,8 +1,8 @@
 use std::io::Write;
 use std::io::Stdout;
 use crossterm::cursor::MoveTo;
-use crossterm::QueueableCommand;
-use crossterm::style::{Print, SetForegroundColor, Color, Attribute, SetAttribute};
+use crossterm::{queue, QueueableCommand};
+use crossterm::style::{Print, SetForegroundColor, Color, Attribute, SetAttribute, ResetColor};
 use crate::GridPos;
 
 pub struct Style {
@@ -12,40 +12,44 @@ pub struct Style {
 
 pub enum StyleItem {
     Text(String),
-    Format(Option<usize>, Option<bool>, Option<bool>),
+    Color(usize),
+    Bold(bool),
     LineBreak,
 }
-
- pub struct StyledString(pub Vec<StyleItem>);
-
 
 impl Style {
     pub fn new() -> Style {
         Self {
-            colors: vec![],
+            colors: vec![Color::Blue, Color::Black],
             border_color: 1,
         }
     }
 
 
-    pub fn queue(&self, stdout: &mut Stdout, string: StyledString, start: GridPos, dim: GridPos) {
+    pub fn reset(&self, stdout: &mut Stdout) {
+        let _ = queue!(
+            stdout,
+            ResetColor,
+            SetAttribute(Attribute::Reset)
+        );
+    }
+
+    pub fn queue(&self, stdout: &mut Stdout, string: Vec<StyleItem>, start: GridPos, dim: GridPos) {
         let mut line = 0;
         let _ = stdout.queue(MoveTo(start.col, start.row));
-        for item in string.0.iter() {
+        for item in string.iter() {
             match item {
                 StyleItem::Text(s) => {
                     let s = s.chars().take(dim.col as usize).collect::<String>();
                     let _ = stdout.queue(Print(s));
                 },
-                StyleItem::Format(color, bold, italic) => {
-                    if let Some(color) = color {
-                        let _ = stdout.queue(SetForegroundColor(self.colors[*color]));
-                    }
-                    if let Some(bold) = bold {
-                        let bold = if *bold { Attribute::Bold } else { Attribute::NoBold };
-                        let _ = stdout.queue(SetAttribute(bold));
-                    }
-                }
+                StyleItem::Color(idx) => {
+                    let _ = stdout.queue(SetForegroundColor(self.colors[*idx]));
+                },
+                StyleItem::Bold(bold) => {
+                    let bold = if *bold { Attribute::Bold } else { Attribute::NoBold };
+                    let _ = stdout.queue(SetAttribute(bold));
+                },
                 StyleItem::LineBreak => {
                     let _ = stdout.queue(MoveTo(start.col, start.row+line));
                     line += 1;
