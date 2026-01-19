@@ -4,7 +4,7 @@ use demys::GridPos;
 use demys::window_manager::WindowManager;
 
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
-use crossterm::event::{read, Event, KeyCode, KeyEvent};
+use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::style::Print;
 use crossterm::terminal::{enable_raw_mode, LeaveAlternateScreen};
 
@@ -35,29 +35,35 @@ fn main() {
     // start with window
     let mut window_manager = WindowManager::new();
 
-    window_manager.layout.split(true);
 
     // get term handle and write initial file state
     let size = crossterm::terminal::size().unwrap();
     let mut terminal_dim= GridPos::from(size).transpose();
-    window_manager.display(&mut stdout, terminal_dim);
+    window_manager.generate_layout(terminal_dim);
+    
+    window_manager.clear(&mut stdout);
+    window_manager.draw(&mut stdout);
 
     stdout.flush();
 
     loop {
         match read().unwrap() {
-            Event::Key(KeyEvent { code, .. }) => {
-                if let KeyCode::Esc = code { break; }
-
-                window_manager.input(code);
-            }
+            Event::Key(KeyEvent { code, kind, .. }) => match kind {
+                KeyEventKind::Press => {
+                    if let KeyCode::Esc = code { break; }
+                    window_manager.input(code);
+                },
+                _ => {}
+            },
             Event::Resize(w, h) => {
                 terminal_dim = (h as u16, w as u16).into();
-            }
+                window_manager.generate_layout(terminal_dim);
+            },
             _ => break
         }
         window_manager.update();
-        window_manager.display(&mut stdout, terminal_dim);
+        window_manager.clear(&mut stdout);
+        window_manager.draw(&mut stdout);
         stdout.flush();
     }
 

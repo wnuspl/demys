@@ -16,6 +16,7 @@ use crate::style::Style;
 pub struct WindowManager {
     pub layout: WindowLayout,
     pub windows: Vec<Box<dyn Window>>,
+    pub generated_layout: Vec<LayoutItem>,
     pub style: Style,
     focused_window: usize,
 }
@@ -57,9 +58,10 @@ impl WindowManager {
     pub fn new() -> Self {
         Self {
             layout: WindowLayout::new(),
-            windows: vec![Box::new(FSTab::new("/".into())),
+            windows: vec![
                           Box::new(TextTab::new(TextBuffer::new(), "hello".to_string()))
                 ],
+            generated_layout: Vec::new(),
             style: Style::new(),
             focused_window: 0,
         }
@@ -99,22 +101,14 @@ impl WindowManager {
         }
     }
 
-    pub fn display(&self, stdout: &mut Stdout, dim: GridPos) {
-        //clear screen
-        let _ = stdout.queue(Clear(ClearType::Purge));
-        let _ = stdout.queue(Clear(ClearType::All));
-        let _ = stdout.queue(MoveTo(0,0));
+    pub fn generate_layout(&mut self, dim: GridPos) {
+        self.generated_layout = self.layout.map_indexes(dim, (0,0).into());
+    }
 
-        // get locations
-        let layout = self.layout.map_indexes(dim, (0,0).into());
-
-
-
-
+    pub fn draw(&self, stdout: &mut Stdout) {
         let mut cursor_location = None;
-
         let mut windows = self.windows.iter().enumerate();
-        for item in layout {
+        for item in &self.generated_layout {
             // reset styles
             self.style.reset(stdout);
 
@@ -122,12 +116,12 @@ impl WindowManager {
                 // Display window
                 LayoutItem::Window { dim, start } => {
                     if let Some((i, window)) = windows.next() {
-                        let text = window.style(dim);
-                        self.style.queue(stdout, text, start, dim);
+                        let text = window.style(*dim);
+                        self.style.queue(stdout, text, *start, *dim);
 
                         // set cursor if focused
                         if i == self.focused_window {
-                            if let Some(cl) = window.cursor_location() { cursor_location = Some(cl + start); }
+                            if let Some(cl) = window.cursor_location() { cursor_location = Some(cl + *start); }
                         }
                     }
                 },
@@ -135,7 +129,7 @@ impl WindowManager {
                 // Display borders
                 LayoutItem::VerticalBorder { length, thickness, start } => {
 
-                    for i in 0..length {
+                    for i in 0..*length {
                         stdout.queue(MoveTo(start.col, start.row+i));
                         stdout.queue(Print("|"));
                     }
@@ -156,7 +150,13 @@ impl WindowManager {
             let _ = stdout.queue(Hide);
         }
 
+    }
 
+    pub fn clear(&self, stdout: &mut Stdout) {
+        //clear screen
+        let _ = stdout.queue(Clear(ClearType::Purge));
+        let _ = stdout.queue(Clear(ClearType::All));
+        let _ = stdout.queue(MoveTo(0,0));
     }
 }
 

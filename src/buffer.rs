@@ -141,10 +141,6 @@ impl TextBuffer {
         let expanded = Self::expand_text(&edit_line);
         let edit_line_count = expanded.len();
 
-        println!("{}", edit_line_count);
-
-
-
 
         // remove and add to edit stack
         let old_line = self.lines.remove(self.cursor.0);
