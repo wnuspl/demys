@@ -1,3 +1,4 @@
+use std::fs;
 use std::fs::read_dir;
 use std::path::PathBuf;
 use crossterm::event::KeyCode;
@@ -24,7 +25,7 @@ pub trait Window {
     // none if cursor should be hidden (0 is row, 1 is col)
     fn cursor_location(&self) -> Option<GridPos> { None }
 
-    fn poll(&self) -> Option<Vec<WindowRequest>> { None }
+    fn poll(&mut self) -> Option<Vec<WindowRequest>> { None }
 
     // wraps text to new line past width
     // helper function for Tab::display
@@ -48,10 +49,6 @@ pub trait Window {
 }
 
 
-pub struct FSTab {
-    line: u16,
-    dir: PathBuf
-}
 
 pub struct TextTab {
     tb: TextBuffer,
@@ -66,6 +63,11 @@ impl TextTab {
     pub fn new(tb: TextBuffer, name: String) -> TextTab {
         TextTab { tb, name }
     }
+    pub fn from_file(path: PathBuf) -> TextTab {
+        let file = fs::File::open(path).unwrap();
+
+        TextTab { tb: TextBuffer::from(file), name: String::new() }
+    }
 }
 
 impl Window for TextTab {
@@ -76,12 +78,8 @@ impl Window for TextTab {
         let raw = format!("{}",self.tb);
         let mut out = Vec::new();
 
-        // add line numbers
-        let mut line_number = 0;
         for line in raw.split("\n") {
-
-            line_number += 1;
-            out.push(StyleItem::Text(format!("{} | {}", line_number, self.wrap(line, dim.col))));
+            out.push(StyleItem::Text(line.to_string()));
             out.push(StyleItem::LineBreak);
         }
 
@@ -96,7 +94,7 @@ impl Window for TextTab {
         }
     }
     fn cursor_location(&self) -> Option<GridPos> {
-        Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16+4).into())
+        Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into())
     }
 }
 
@@ -128,15 +126,18 @@ impl Window for CharTab {
 
 
 
-
-
+pub struct FSTab {
+    line: u16,
+    dir: PathBuf,
+    selected: Vec<WindowRequest>,
+}
 
 
 // FILE SYSTEM TAB IMPL
 // allows navigation of filesystem to open files
 impl FSTab {
     pub fn new(dir: PathBuf) -> FSTab {
-        FSTab { line: 0, dir }
+        FSTab { line: 0, dir, selected: Vec::new() }
     }
 }
 impl Window for FSTab {
@@ -168,6 +169,10 @@ impl Window for FSTab {
         out
     }
 
+    fn poll(&mut self) -> Option<Vec<WindowRequest>> {
+        Some(std::mem::take(&mut self.selected))
+    }
+
 
     fn input(&mut self, key: KeyCode) -> Result<(), String> {
         match key {
@@ -187,8 +192,15 @@ impl Window for FSTab {
             KeyCode::Enter => {
                 // change dir to selected
                 if let Ok(mut dir_iter) = read_dir(&self.dir) {
-                    let selected = dir_iter.nth(self.line as usize).unwrap().unwrap().path();
-                    self.dir = selected;
+                    let selected = dir_iter.nth(self.line as usize).unwrap().unwrap();
+
+                    if ! selected.file_type().unwrap().is_dir() {
+                        let opened = Box::new(TextTab::from_file(selected.path()));
+                        self.selected.push(WindowRequest::ReplaceWindow(opened));
+                    }
+
+
+                    self.dir = selected.path();
                 }
 
                 Ok(())

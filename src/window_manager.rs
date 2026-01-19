@@ -58,7 +58,7 @@ impl WindowManager {
         Self {
             layout: WindowLayout::new(),
             windows: vec![Box::new(FSTab::new("/".into())),
-                          Box::new(CharTab('.'))
+                          Box::new(TextTab::new(TextBuffer::new(), "hello".to_string()))
                 ],
             style: Style::new(),
             focused_window: 0,

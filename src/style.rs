@@ -51,8 +51,8 @@ impl Style {
                     let _ = stdout.queue(SetAttribute(bold));
                 },
                 StyleItem::LineBreak => {
-                    let _ = stdout.queue(MoveTo(start.col, start.row+line));
                     line += 1;
+                    let _ = stdout.queue(MoveTo(start.col, start.row+line));
                 }
             }
             if line > dim.row { break; }

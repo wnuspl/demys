@@ -56,6 +56,7 @@ fn main() {
             }
             _ => break
         }
+        window_manager.update();
         window_manager.display(&mut stdout, terminal_dim);
         stdout.flush();
     }
