@@ -4,7 +4,8 @@ use std::ops::Add;
 pub mod buffer;
 pub mod window;
 pub mod window_manager;
-mod style;
+pub mod style;
+pub mod layout;
 
 #[derive(Clone,Copy)]
 pub struct GridPos {

@@ -25,7 +25,7 @@ pub trait Window {
     // none if cursor should be hidden (0 is row, 1 is col)
     fn cursor_location(&self) -> Option<GridPos> { None }
 
-    fn poll(&mut self) -> Option<Vec<WindowRequest>> { None }
+    fn poll(&mut self) -> Vec<WindowRequest> { Vec::new() }
 
     // wraps text to new line past width
     // helper function for Tab::display
@@ -52,7 +52,8 @@ pub trait Window {
 
 pub struct TextTab {
     tb: TextBuffer,
-    name: String
+    name: String,
+    requests: Vec<WindowRequest>
 }
 
 
@@ -61,12 +62,12 @@ pub struct TextTab {
 // Holds text buffers
 impl TextTab {
     pub fn new(tb: TextBuffer, name: String) -> TextTab {
-        TextTab { tb, name }
+        TextTab { tb, name, requests: Vec::new() }
     }
     pub fn from_file(path: PathBuf) -> TextTab {
         let file = fs::File::open(path).unwrap();
 
-        TextTab { tb: TextBuffer::from(file), name: String::new() }
+        TextTab { tb: TextBuffer::from(file), name: String::new(), requests: Vec::new() }
     }
 }
 
@@ -79,13 +80,14 @@ impl Window for TextTab {
         let mut out = Vec::new();
 
         for line in raw.split("\n") {
-            out.push(StyleItem::Text(line.to_string()));
+            out.push(StyleItem::Text(format!("{:<w$}", line, w=dim.col as usize)));
             out.push(StyleItem::LineBreak);
         }
 
         out
     }
     fn input(&mut self, key: KeyCode) -> Result<(), String> {
+        self.requests.push(WindowRequest::Redraw);
         match key {
             KeyCode::Backspace => self.tb.delete(1),
             KeyCode::Enter => self.tb.insert("\n"),
@@ -95,6 +97,9 @@ impl Window for TextTab {
     }
     fn cursor_location(&self) -> Option<GridPos> {
         Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into())
+    }
+    fn poll(&mut self) -> Vec<WindowRequest> {
+        std::mem::take(&mut self.requests)
     }
 }
 
@@ -169,8 +174,8 @@ impl Window for FSTab {
         out
     }
 
-    fn poll(&mut self) -> Option<Vec<WindowRequest>> {
-        Some(std::mem::take(&mut self.selected))
+    fn poll(&mut self) -> Vec<WindowRequest> {
+        std::mem::take(&mut self.selected)
     }
 
 

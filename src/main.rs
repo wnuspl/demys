@@ -34,6 +34,7 @@ fn main() {
 
     // start with window
     let mut window_manager = WindowManager::new();
+    window_manager.layout.format.split(true);
 
 
     // get term handle and write initial file state
@@ -58,12 +59,13 @@ fn main() {
             Event::Resize(w, h) => {
                 terminal_dim = (h as u16, w as u16).into();
                 window_manager.generate_layout(terminal_dim);
+                window_manager.clear(&mut stdout);
+                window_manager.draw(&mut stdout);
             },
             _ => break
         }
         window_manager.update();
-        window_manager.clear(&mut stdout);
-        window_manager.draw(&mut stdout);
+        window_manager.draw_queued(&mut stdout);
         stdout.flush();
     }
 
