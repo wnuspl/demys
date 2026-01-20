@@ -1,13 +1,14 @@
 # todo
-last updated 1.17.2026 1:04am
+last updated 1.19.2026 3:37pm
 
 ---
 
 ## priority
-- borders on windows
-- allow windows to communicate events
-- not refreshing the whole screen
-- better file system tab
+- refactor windowlayout
+- WindowLayout = organized into vec of windows, vec of borders
+- WindowGrid = old window layout
+- controls to split windows
+- save/exit
 
 ## secondary
 - start edit system
