@@ -12,7 +12,7 @@ pub struct Style {
 
 pub enum StyleItem {
     Text(String),
-    Color(usize),
+    Color(Option<usize>),
     Bold(bool),
     LineBreak,
 }
@@ -20,7 +20,7 @@ pub enum StyleItem {
 impl Style {
     pub fn new() -> Style {
         Self {
-            colors: vec![Color::Blue, Color::Black],
+            colors: vec![Color::Black, Color::Magenta],
             border_color: 1,
         }
     }
@@ -44,7 +44,9 @@ impl Style {
                     let _ = stdout.queue(Print(s));
                 },
                 StyleItem::Color(idx) => {
-                    let _ = stdout.queue(SetForegroundColor(self.colors[*idx]));
+                    let i;
+                    if idx.is_some() { i = idx.unwrap(); } else { i = 0; }
+                    let _ = stdout.queue(SetForegroundColor(self.colors[i]));
                 },
                 StyleItem::Bold(bold) => {
                     let bold = if *bold { Attribute::Bold } else { Attribute::NoBold };

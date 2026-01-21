@@ -11,6 +11,8 @@ use crate::style::{StyleItem, };
 
 pub enum WindowRequest {
     Redraw,
+    Clear,
+    Cursor(Option<GridPos>),
     ReplaceWindow(Box<dyn Window>),
 }
 
@@ -22,32 +24,46 @@ pub trait Window {
     fn style(&self, dim: GridPos) -> Vec<StyleItem>;
     fn input(&mut self, key: KeyCode) -> Result<(),String> { Ok(()) }
 
-    // none if cursor should be hidden (0 is row, 1 is col)
-    fn cursor_location(&self) -> Option<GridPos> { None }
-
     fn poll(&mut self) -> Vec<WindowRequest> { Vec::new() }
-
-    // wraps text to new line past width
-    // helper function for Tab::display
-    fn wrap(&self, text: &str, width: u16) -> String {
-        let width = width as usize;
-        let mut out = String::new();
-        for line in text.split("\n") {
-            // loop until remaining string can be fit
-            let mut split = Vec::new();
-            let mut remaining: String = line.to_string();
-            while remaining.len() > width {
-                split.push(remaining[..width].to_string());
-                remaining.replace_range(0..width, "");
-            }
-
-            split.push(remaining);
-            out += &split.join("\n");
-        }
-        out
-    }
 }
 
+// wraps text to new line past width
+// helper function for Tab::display
+pub fn wrap(text: &str, width: u16) -> String {
+    let width = width as usize;
+    let mut out = String::new();
+    for line in text.split("\n") {
+        // loop until remaining string can be fit
+        let mut split = Vec::new();
+        let mut remaining: String = line.to_string();
+        while remaining.len() > width {
+            split.push(remaining[..width].to_string());
+            remaining.replace_range(0..width, "");
+        }
+
+        split.push(remaining);
+        out += &split.join("\n");
+    }
+    out
+}
+
+pub fn pad(text: &str, dim: GridPos) -> String {
+    let mut out = String::new();
+    let mut count = 0;
+    for line in text.split("\n") {
+        out += &format!("{:<w$}\n", line, w=dim.col as usize);
+        count += 1;
+    }
+
+
+    if count < dim.col {
+        for _ in 0..(dim.col-count) {
+            out += "\n";
+        }
+    }
+
+    out
+}
 
 
 pub struct TextTab {
@@ -76,27 +92,29 @@ impl Window for TextTab {
         self.name.clone()
     }
     fn style(&self, dim: GridPos) -> Vec<StyleItem> {
-        let raw = format!("{}",self.tb);
+        let raw = pad(&format!("{}",self.tb), dim);
         let mut out = Vec::new();
 
         for line in raw.split("\n") {
-            out.push(StyleItem::Text(format!("{:<w$}", line, w=dim.col as usize)));
+            out.push(StyleItem::Text(line.to_string()));
+            //out.push(StyleItem::Text(format!("{:<w$}", line, w=dim.col as usize)));
             out.push(StyleItem::LineBreak);
         }
 
         out
     }
     fn input(&mut self, key: KeyCode) -> Result<(), String> {
-        self.requests.push(WindowRequest::Redraw);
-        match key {
+        let ret = match key {
             KeyCode::Backspace => self.tb.delete(1),
             KeyCode::Enter => self.tb.insert("\n"),
             KeyCode::Char(ch) => self.tb.insert(&ch.to_string()),
             _ => Err("no match for provided key".to_string())
-        }
-    }
-    fn cursor_location(&self) -> Option<GridPos> {
-        Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into())
+        };
+
+        self.requests.push(WindowRequest::Cursor(Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into())));
+        self.requests.push(WindowRequest::Redraw);
+
+        ret
     }
     fn poll(&mut self) -> Vec<WindowRequest> {
         std::mem::take(&mut self.requests)
@@ -107,26 +125,6 @@ impl Window for TextTab {
 
 
 
-pub struct CharTab(pub char);
-
-impl Window for CharTab {
-    fn name(&self) -> String { "char".to_string() }
-
-    fn style(&self, dim: GridPos) -> Vec<StyleItem> {
-        let mut out = Vec::new();
-        out.push(StyleItem::Color(0));
-        for i in 0..dim.row {
-            for j in 0..dim.col {
-                out.push(StyleItem::Text(self.0.to_string()));
-            }
-            if i+1 != dim.row { out.push(StyleItem::LineBreak); }
-        }
-        out.push(StyleItem::Color(1));
-        out
-    }
-}
-
-
 
 
 
@@ -134,7 +132,7 @@ impl Window for CharTab {
 pub struct FSTab {
     line: u16,
     dir: PathBuf,
-    selected: Vec<WindowRequest>,
+    requests: Vec<WindowRequest>,
 }
 
 
@@ -142,7 +140,7 @@ pub struct FSTab {
 // allows navigation of filesystem to open files
 impl FSTab {
     pub fn new(dir: PathBuf) -> FSTab {
-        FSTab { line: 0, dir, selected: Vec::new() }
+        FSTab { line: 0, dir, requests: Vec::new() }
     }
 }
 impl Window for FSTab {
@@ -153,7 +151,7 @@ impl Window for FSTab {
         let mut out = Vec::new();
 
         if let Ok(dir_iter) = read_dir(&self.dir) {
-            for entry in dir_iter {
+            for (i, entry) in dir_iter.enumerate() {
                 if let Ok(entry) = entry {
                     let name = entry.file_name().to_str().unwrap().to_string();
                     let is_dir = entry.file_type().unwrap().is_dir();
@@ -164,8 +162,13 @@ impl Window for FSTab {
                         name.to_string()
                     };
 
+                    if self.line == i as u16 {
+                        out.push(StyleItem::Color(Some(1)));
+                    }
+
                     out.push(StyleItem::Text(format!("{}", display)));
                     out.push(StyleItem::LineBreak);
+                    out.push(StyleItem::Color(None));
                 }
             }
         }
@@ -175,23 +178,23 @@ impl Window for FSTab {
     }
 
     fn poll(&mut self) -> Vec<WindowRequest> {
-        std::mem::take(&mut self.selected)
+        std::mem::take(&mut self.requests)
     }
 
 
     fn input(&mut self, key: KeyCode) -> Result<(), String> {
-        match key {
+        let ret  = match key {
             KeyCode::Up | KeyCode::Char('k') => {
                 if self.line > 0 { self.line -= 1; Ok(()) }
                 else { Err("".to_string() )}
             },
             KeyCode::Down | KeyCode::Char('j') => {
                 // get num of entries
-                let dir_len = if let Ok(mut dir_iter) = read_dir(&self.dir) {
+                let dir_len = if let Ok(dir_iter) = read_dir(&self.dir) {
                     dir_iter.count()
                 } else { 1 };
 
-                if (self.line as usize) < dir_len-1 { self.line += 1; Ok(()) }
+                if dir_len != 0 && (self.line as usize) < dir_len-1 { self.line += 1; Ok(()) }
                 else { Err("".to_string() )}
             },
             KeyCode::Enter => {
@@ -201,22 +204,24 @@ impl Window for FSTab {
 
                     if ! selected.file_type().unwrap().is_dir() {
                         let opened = Box::new(TextTab::from_file(selected.path()));
-                        self.selected.push(WindowRequest::ReplaceWindow(opened));
+                        self.requests.push(WindowRequest::ReplaceWindow(opened));
                     }
 
 
                     self.dir = selected.path();
                 }
 
+                self.requests.push(WindowRequest::Clear);
+                self.line = 0;
+
                 Ok(())
             }
             _ => Err("no match for provided key".to_string())
-        }
+        };
+
+        self.requests.push(WindowRequest::Redraw);
+
+        ret
 
     }
-
-    fn cursor_location(&self) -> Option<GridPos> {
-        Some((self.line, 0).into())
-    }
-
 }

@@ -6,7 +6,7 @@ use demys::window_manager::WindowManager;
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::style::Print;
-use crossterm::terminal::{enable_raw_mode, LeaveAlternateScreen};
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
 
 
 
@@ -29,12 +29,16 @@ fn main() {
 
     let mut stdout = stdout();
 
-    crossterm::terminal::enable_raw_mode().unwrap();
+    let _ = crossterm::terminal::enable_raw_mode();
+
+    let _ = execute!(
+        stdout,
+        EnterAlternateScreen
+    );
 
 
     // start with window
     let mut window_manager = WindowManager::new();
-    window_manager.layout.format.split(true);
 
 
     // get term handle and write initial file state
@@ -64,8 +68,7 @@ fn main() {
             },
             _ => break
         }
-        window_manager.update();
-        window_manager.draw_queued(&mut stdout);
+        window_manager.update(&mut stdout);
         stdout.flush();
     }
 
