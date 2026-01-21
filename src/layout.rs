@@ -1,6 +1,13 @@
 use std::mem;
 use crate::GridPos;
-use crate::window_manager::WindowManager;
+
+
+pub struct Layout {
+    pub grid: Grid,
+    window_space: Vec<WindowSpace>,
+    border_space: Vec<BorderSpace>,
+    current_dim: GridPos
+}
 
 #[derive(Clone)]
 pub enum Grid {
@@ -13,13 +20,6 @@ pub enum Grid {
         widths: Vec<f32>
     },
     Single
-}
-
-pub struct Layout {
-    pub format: Grid,
-    window_space: Vec<WindowSpace>,
-    border_space: Vec<BorderSpace>,
-    current_dim: GridPos
 }
 
 pub struct WindowSpace {
@@ -51,7 +51,7 @@ fn to_dist_vec(vec: &Vec<f32>) -> Vec<f32> {
 impl Layout {
     pub fn new() -> Self {
         Self {
-            format: Grid::new(),
+            grid: Grid::new(),
             window_space: Vec::new(),
             border_space: Vec::new(),
             current_dim: (0,0).into()
@@ -59,7 +59,7 @@ impl Layout {
     }
     // set window_pos, border_pos
     pub fn generate(&mut self, dim: GridPos) {
-        let mut space = self.format.generate_space(dim, (0,0).into());
+        let mut space = self.grid.generate_space(dim, (0,0).into());
 
         self.window_space = mem::take(&mut space.0);
         self.border_space = mem::take(&mut space.1);

@@ -1,13 +1,9 @@
-use std::io::{Stdout, Write, Error};
-use std::mem;
-use std::path::PathBuf;
-use crate::window::{FSTab, TextTab, Window, WindowRequest};
+use std::io::{Stdout, Error};
+use crate::window::{FSTab, Window, WindowRequest};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;
-use crossterm::style::{Attribute, Print, ResetColor, SetAttribute};
 use crossterm::terminal::{Clear, ClearType};
-use crate::buffer::TextBuffer;
 use crate::GridPos;
 use crate::style::{Style, StyleItem};
 use crate::layout::*;
@@ -48,6 +44,13 @@ impl WindowManager {
         }
     }
 
+
+
+
+
+
+
+    // Polls all windows, calling appropriate functions to update them
     pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Error> {
         let mut replacements = Vec::new();
         let mut redraws = Vec::new();
@@ -58,21 +61,15 @@ impl WindowManager {
         for (i, window) in self.windows.iter_mut().enumerate() {
             for request in window.poll() {
                 match request {
-                    WindowRequest::Redraw => {
-                        redraws.push(i);
-                    },
-                    WindowRequest::Clear => {
-                        clears.push(i);    
-                    }
-                    WindowRequest::ReplaceWindow(w) => {
-                        replacements.push((i, w));
-                    },
-                    WindowRequest::Cursor(loc) => {
-                        cursor.push((i, loc));
-                    }
+                    WindowRequest::Redraw => redraws.push(i),
+                    WindowRequest::Clear => clears.push(i),
+                    WindowRequest::ReplaceWindow(w) => replacements.push((i, w)),
+                    WindowRequest::Cursor(loc) => cursor.push((i, loc))
                 }
             }
         }
+
+
 
         for (i, w) in replacements {
             self.windows[i] = w;
@@ -116,9 +113,17 @@ impl WindowManager {
         Ok(())
     }
 
+
+
+
+
     pub fn generate_layout(&mut self, dim: GridPos) {
         self.layout.generate(dim);
     }
+
+
+
+
 
 
     pub fn draw_window(&self, stdout: &mut Stdout, window_idx: usize) {
@@ -134,8 +139,14 @@ impl WindowManager {
         }
     }
 
+
+
+
+
+
+    // draw all windows/borders
+    // only called on start and resize
     pub fn draw(&mut self, stdout: &mut Stdout) -> Result<(),String> {
-        //let mut cursor_location = None;
         let border_space = self.layout.get_borders();
         for i in 0..self.windows.len() {
             self.draw_window(stdout, i);
@@ -174,21 +185,12 @@ impl WindowManager {
         }
 
         Ok(())
-
-        /*
-        if let Some(cursor_location) = cursor_location {
-            let _ = queue!(stdout,
-                Show,
-                MoveTo(cursor_location.col, cursor_location.row)
-            );
-        } else {
-            let _ = stdout.queue(Hide);
-        }
-        */
     }
 
+
+
+    // clears the whole screen
     pub fn clear(&self, stdout: &mut Stdout) {
-        //clear screen
         let _ = stdout.queue(Clear(ClearType::Purge));
         let _ = stdout.queue(Clear(ClearType::All));
         let _ = stdout.queue(MoveTo(0,0));

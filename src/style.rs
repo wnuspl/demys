@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::io::Stdout;
 use crossterm::cursor::MoveTo;
 use crossterm::{queue, QueueableCommand};
@@ -7,7 +6,6 @@ use crate::GridPos;
 
 pub struct Style {
     colors: Vec<Color>,
-    border_color: usize
 }
 
 pub enum StyleItem {
@@ -21,7 +19,6 @@ impl Style {
     pub fn new() -> Style {
         Self {
             colors: vec![Color::Black, Color::Magenta],
-            border_color: 1,
         }
     }
 

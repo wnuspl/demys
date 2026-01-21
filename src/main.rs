@@ -1,11 +1,10 @@
 use std::io::{Write, stdout};
 use std::env;
-use demys::GridPos;
+use demys::{GridPos, window};
 use demys::window_manager::WindowManager;
 
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
-use crossterm::style::Print;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
 
 
@@ -45,6 +44,8 @@ fn main() {
     let size = crossterm::terminal::size().unwrap();
     let mut terminal_dim= GridPos::from(size).transpose();
     window_manager.generate_layout(terminal_dim);
+
+    window_manager.layout.grid.split(true);
     
     window_manager.clear(&mut stdout);
     window_manager.draw(&mut stdout);
