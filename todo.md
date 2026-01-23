@@ -1,16 +1,14 @@
 # todo
-last updated 1.19.2026 3:37pm
+last updated 1.20.2026 9:48pm
 
 ---
 
 ## priority
-- refactor windowlayout
-- WindowLayout = organized into vec of windows, vec of borders
-- WindowGrid = old window layout
-- controls to split windows
 - save/exit
+- better file system tab (scrolling, opening folders)
+- controls to split windows
 
 ## secondary
+- open from command line
 - start edit system
-- start specialized controls (window managing, choosing file from fstab)
 - cli to config windows
