@@ -1,5 +1,6 @@
 use std::fs;
 use std::fs::read_dir;
+use std::io::Cursor;
 use std::path::PathBuf;
 use crossterm::event::KeyCode;
 use crate::buffer::TextBuffer;
@@ -23,6 +24,8 @@ pub trait Window {
     // returns string representation of tab
     fn style(&self, dim: GridPos) -> Vec<StyleItem>;
     fn input(&mut self, key: KeyCode) -> Result<(),String> { Ok(()) }
+    fn on_focus(&mut self) {}
+    fn leave_focus(&mut self) {}
 
     fn poll(&mut self) -> Vec<WindowRequest> { Vec::new() }
 }
@@ -81,9 +84,7 @@ impl TextTab {
         TextTab { tb, name, requests: Vec::new() }
     }
     pub fn from_file(path: PathBuf) -> TextTab {
-        let file = fs::File::open(path).unwrap();
-
-        TextTab { tb: TextBuffer::from(file), name: String::new(), requests: Vec::new() }
+        TextTab { tb: TextBuffer::from(path), name: String::new(), requests: Vec::new() }
     }
 }
 
@@ -107,6 +108,14 @@ impl Window for TextTab {
         let ret = match key {
             KeyCode::Backspace => self.tb.delete(1),
             KeyCode::Enter => self.tb.insert("\n"),
+            KeyCode::F(12) => {self.tb.save(); Ok(())},
+            
+            KeyCode::Up => self.tb.cursor_move_by(Some(-1), None),
+            KeyCode::Down => self.tb.cursor_move_by(Some(1), None),
+            KeyCode::Left => self.tb.cursor_move_by(None, Some(-1)),
+            KeyCode::Right => self.tb.cursor_move_by(None, Some(1)),
+
+
             KeyCode::Char(ch) => self.tb.insert(&ch.to_string()),
             _ => Err("no match for provided key".to_string())
         };
@@ -115,6 +124,14 @@ impl Window for TextTab {
         self.requests.push(WindowRequest::Redraw);
 
         ret
+    }
+    fn on_focus(&mut self) {
+        self.requests.push(WindowRequest::Cursor(Some(
+            (self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into()
+        )));
+    }
+    fn leave_focus(&mut self) {
+        self.requests.push(WindowRequest::Cursor(None));
     }
     fn poll(&mut self) -> Vec<WindowRequest> {
         std::mem::take(&mut self.requests)

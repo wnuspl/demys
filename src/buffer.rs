@@ -2,7 +2,8 @@
 
 use std::fmt::{Display, Formatter};
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Write};
+use std::path::{Path, PathBuf};
 
 // Contains text, cursor position, and edit history
 // Lowest level of interaction with text, provides functionality for creating/undoing edits
@@ -13,11 +14,14 @@ const LINE_BR: &str = "\n";
 #[derive(Clone)]
 pub struct TextBuffer {
     lines: Vec<String>,
-    edit_stack: Vec<(usize, usize, Vec<String>)>,
     pub cursor: (usize, usize),
+    pub path: Option<PathBuf>,
+    saved: bool
+
 }
-impl From<File> for TextBuffer {
-    fn from(file: File) -> Self {
+impl From<PathBuf> for TextBuffer {
+    fn from(path: PathBuf) -> Self {
+        let file = File::open(&path).unwrap();
         let reader = BufReader::new(file);
         let mut vec = Vec::new();
 
@@ -30,8 +34,9 @@ impl From<File> for TextBuffer {
 
         TextBuffer {
             lines: vec,
-            edit_stack: Vec::new(),
             cursor: (0, 0),
+            path: Some(path),
+            saved: true
         }
     }
 }
@@ -39,8 +44,9 @@ impl TextBuffer {
     pub fn new() -> TextBuffer {
         TextBuffer {
             lines: vec!["".to_string()],
-            edit_stack: Vec::new(),
             cursor: (0, 0),
+            path: None,
+            saved: true
         }
     }
     pub fn expand_text(text: &String) -> Vec<String> {
@@ -92,6 +98,12 @@ impl TextBuffer {
             // oob check
             if self.lines.iter().len() <= new_row_usize { return Err("target row is greater than number of rows".to_string()); }
             self.cursor.0 = new_row_usize;
+
+            // move to end of line if beyond it
+            let line_len = self.lines[self.cursor.0].len();
+            if line_len < self.cursor.1 {
+                self.cursor.1 = line_len;
+            }
         }
 
         if let Some(col) = c {
@@ -152,12 +164,15 @@ impl TextBuffer {
         self.cursor_end_of_line();
         let _ = self.cursor_move_by(None, Some(extra_chars as isize *-1));
 
+        self.saved = false;
+
         Ok(())
     }
 
     // deletes n chars behind cursor
     pub fn delete(&mut self, n: usize) -> Result<(), String> {
         if n == 0 { return Ok(()); }
+
 
         if self.cursor == (0,0) { return Err("start of file".to_string()); }
 
@@ -177,30 +192,31 @@ impl TextBuffer {
             self.lines[self.cursor.0].remove(self.cursor.1);
         }
 
+        self.saved = false;
+
         self.delete(n-1)
     }
-    pub fn delete_to(&mut self, r: usize, c: usize) -> Result<(), String> {
-        // check bounds
-        if self.lines.iter().len() <= r { return Err("".to_string()); }
-        if self.lines[r].len() < c { return Err("".to_string()); }
 
-        let char_count = self.lines[self.cursor.0].len() - self.cursor.1;
-        if r == self.cursor.0 {
-            self.cursor_to(None, Some(c))?;
-            self.delete(char_count)?;
-            return Ok(());
+
+
+    pub fn save(&mut self) -> std::io::Result<()> {
+        if self.saved { return Ok(()); }
+
+        if let Some(path) = &self.path {
+            let mut file = File::create(path)?;
+            let text = format!("{}", self);
+            let data = text.as_bytes();
+            
+            file.write_all(data)?;
+
+            self.saved = true;
         }
 
-
-        // TODO: get char count across multiple lines
-        // set cursor pos to end and delete char count
-
-        // Or just do it a different way...
-
-        // Also support deleting in the other direction
-
         Ok(())
+
     }
+
+
 }
 
 

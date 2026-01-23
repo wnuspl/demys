@@ -1,5 +1,8 @@
 use std::io::{Write, stdout};
 use std::env;
+use std::path::PathBuf;
+use crossterm::cursor::Hide;
+use demys::window::{FSTab, TextTab};
 use demys::{GridPos, window};
 use demys::window_manager::WindowManager;
 
@@ -26,30 +29,55 @@ impl Drop for TuiGuard {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+    let current_dir = env::current_dir().expect("");
+
+
+
+
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    for p in &args[1..] {
+        file_paths.push(p.into());
+    }
+
+
+    // init terminal
     let mut stdout = stdout();
-
     let _ = crossterm::terminal::enable_raw_mode();
-
     let _ = execute!(
         stdout,
-        EnterAlternateScreen
+        EnterAlternateScreen,
+        Hide
     );
 
-
-    // start with window
-    let mut window_manager = WindowManager::new();
-
-
-    // get term handle and write initial file state
+    // terminal dimensions
     let size = crossterm::terminal::size().unwrap();
     let mut terminal_dim= GridPos::from(size).transpose();
+
+    // get window manager
+    let mut window_manager = WindowManager::new();
     window_manager.generate_layout(terminal_dim);
 
-    window_manager.layout.grid.split(true);
+
+    // if no files provided
+    if file_paths.len() == 0 {
+        window_manager.add_window(FSTab::new(current_dir));
+    } else {
+
+        // open all files
+        for p in file_paths {
+            window_manager.add_window(TextTab::from_file(p));
+        }
+
+    }
+
+
+
+
+
+
     
     window_manager.clear(&mut stdout);
     window_manager.draw(&mut stdout);
-
     stdout.flush();
 
     loop {

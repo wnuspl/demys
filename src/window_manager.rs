@@ -1,5 +1,5 @@
 use std::io::{Stdout, Error};
-use crate::window::{FSTab, Window, WindowRequest};
+use crate::window::{FSTab, TextTab, Window, WindowRequest};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;
@@ -23,21 +23,28 @@ impl WindowManager {
     pub fn new() -> Self {
         Self {
             layout: Layout::new(),
-            windows: vec![
-                          Box::new(FSTab::new("/".into())),
-                ],
+            windows: Vec::new(),
             style: Style::new(),
             focused_window: 0,
+        }
+    }
+
+    pub fn add_window(&mut self, window: impl Window + 'static) {
+        self.windows.push(Box::new(window));
+        if self.layout.get_windows().len() < self.windows.len() {
+            self.layout.grid.split(true);
         }
     }
 
     // sends input to focused window
     pub fn input(&mut self, key: KeyCode) -> Result<(),String> {
         if let KeyCode::Tab = key {
+            self.windows[self.focused_window].leave_focus();
             self.focused_window += 1;
             if self.focused_window >= self.windows.len() {
                 self.focused_window = 0;
             }
+            self.windows[self.focused_window].on_focus();
             Ok(())
         } else {
             self.windows[self.focused_window].input(key)
