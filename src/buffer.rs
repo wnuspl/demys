@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
@@ -70,16 +71,16 @@ impl TextBuffer {
     // useful methods to move cursor around text buffer and get position
 
     // Err if line/char doesn't exist
-    pub fn cursor_to(&mut self, r: Option<usize>, c: Option<usize>) -> Result<(),String> {
+    pub fn cursor_to(&mut self, r: Option<usize>, c: Option<usize>) -> Result<(), Box<dyn Error>> {
         if let Some(row) = r {
             // oob check
-            if self.lines.iter().len() <= row { return Err("".to_string()); }
+            if self.lines.iter().len() <= row { return Err("".into()); }
             self.cursor.0 = row;
         }
 
         if let Some(col) = c {
             // oob check
-            if self.lines[self.cursor.0].len() < col { return Err("".to_string()); }
+            if self.lines[self.cursor.0].len() < col { return Err("".into()); }
             self.cursor.1 = col;
         }
 
@@ -87,16 +88,16 @@ impl TextBuffer {
     }
 
     // Err if line/char doesn't exist
-    pub fn cursor_move_by(&mut self, r: Option<isize>, c: Option<isize>) -> Result<(),String> {
+    pub fn cursor_move_by(&mut self, r: Option<isize>, c: Option<isize>) -> Result<(), Box<dyn Error>> {
         if let Some(row) = r {
             // check that sum isn't negative
             let new_row = (self.cursor.0 as isize)+row;
-            if new_row < 0 { return Err("target row is negative".to_string()); }
+            if new_row < 0 { return Err("target row is negative".into()); }
 
             let new_row_usize = new_row as usize;
 
             // oob check
-            if self.lines.iter().len() <= new_row_usize { return Err("target row is greater than number of rows".to_string()); }
+            if self.lines.iter().len() <= new_row_usize { return Err("target row is greater than number of rows".into()); }
             self.cursor.0 = new_row_usize;
 
             // move to end of line if beyond it
@@ -109,12 +110,12 @@ impl TextBuffer {
         if let Some(col) = c {
             // check that sum isn't negative
             let new_col = (self.cursor.1 as isize)+col;
-            if new_col < 0 { return Err("".to_string()); }
+            if new_col < 0 { return Err("".into()); }
 
             let new_col_usize = new_col as usize;
 
             // oob check
-            if self.lines[self.cursor.0].len() < new_col_usize { return Err("".to_string()); }
+            if self.lines[self.cursor.0].len() < new_col_usize { return Err("".into()); }
             self.cursor.1 = new_col_usize;
         }
 
@@ -140,7 +141,7 @@ impl TextBuffer {
 
 
     // EDIT METHODS
-    pub fn insert(&mut self, text: &str) -> Result<(),String> {
+    pub fn insert(&mut self, text: &str) -> Result<(), Box<dyn Error>> {
         let mut edit_line;
         let extra_chars; // chars in edit_line AFTER cursor
 
@@ -170,11 +171,11 @@ impl TextBuffer {
     }
 
     // deletes n chars behind cursor
-    pub fn delete(&mut self, n: usize) -> Result<(), String> {
+    pub fn delete(&mut self, n: usize) -> Result<(), Box<dyn Error>> {
         if n == 0 { return Ok(()); }
 
 
-        if self.cursor == (0,0) { return Err("start of file".to_string()); }
+        if self.cursor == (0,0) { return Err("start of file".into()); }
 
         // remove line
         if self.cursor.1 == 0 {

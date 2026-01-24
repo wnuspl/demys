@@ -1,5 +1,6 @@
-use std::io::{Stdout, Error};
 use crate::window::{Window, WindowRequest};
+use std::error::Error;
+use std::io::Stdout;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;
@@ -37,7 +38,7 @@ impl WindowManager {
     }
 
     // sends input to focused window
-    pub fn input(&mut self, key: KeyCode) -> Result<(),String> {
+    pub fn input(&mut self, key: KeyCode) {
         if let KeyCode::Tab = key {
             self.windows[self.focused_window].leave_focus();
             self.focused_window += 1;
@@ -45,9 +46,8 @@ impl WindowManager {
                 self.focused_window = 0;
             }
             self.windows[self.focused_window].on_focus();
-            Ok(())
         } else {
-            self.windows[self.focused_window].input(key)
+            self.windows[self.focused_window].input(key);
         }
     }
 
@@ -58,7 +58,7 @@ impl WindowManager {
 
 
     // Polls all windows, calling appropriate functions to update them
-    pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Error> {
+    pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
         let mut replacements = Vec::new();
         let mut redraws = Vec::new();
         let mut clears = Vec::new();
@@ -153,7 +153,7 @@ impl WindowManager {
 
     // draw all windows/borders
     // only called on start and resize
-    pub fn draw(&mut self, stdout: &mut Stdout) -> Result<(),String> {
+    pub fn draw(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
         let border_space = self.layout.get_borders();
         for i in 0..self.windows.len() {
             self.draw_window(stdout, i);

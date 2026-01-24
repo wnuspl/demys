@@ -61,6 +61,7 @@ struct DirectoryRep {
     is_open: bool
 }
 
+
 impl From<DirEntry> for DirectoryRep {
     fn from(value: DirEntry) -> Self {
         Self {
@@ -128,26 +129,21 @@ impl DirectoryRep {
 
 
     fn _map_line_child(&mut self, remaining: &mut u16) -> Option<&mut DirectoryRep> {
-        *remaining -= 1; // self
 
+        // base case, on selected currently
         if *remaining == 0 {
             return Some(self);
         }
-    
+
+        *remaining -= 1;
+
 
         for c in &mut self.children {
-            println!("{}, {}", c.name, remaining);
-            if *remaining == 0 {
-                return Some(c);
+            let dr = c._map_line_child(remaining);
+
+            if dr.is_some() {
+                return dr;
             }
-
-            if c.is_open {
-                let dr = c._map_line_child(remaining);
-
-                if dr.is_some() {
-                    return dr;
-                }
-            } else { *remaining -= 1; }
         }
 
         None
@@ -270,26 +266,24 @@ impl Window for FSTab {
         out
     }
 
-    fn poll(&mut self) -> Vec<WindowRequest> {
-        std::mem::take(&mut self.requests)
+    fn requests(&mut self) -> &mut Vec<WindowRequest> {
+        &mut self.requests
     }
 
 
-    fn input(&mut self, key: KeyCode) -> Result<(), String> {
-        let ret  = match key {
+    fn input(&mut self, key: KeyCode) {
+        match key {
             KeyCode::Up | KeyCode::Char('k') => {
                 let target = self.line-1;
 
                 self.scroll_to(target);
                 self.line = target;
-                Ok(())
             },
             KeyCode::Down | KeyCode::Char('j') => {
                 let target = self.line+1;
 
                 self.scroll_to(target);
                 self.line = target;
-                Ok(())
             },
             KeyCode::Enter => {
                 self.requests.push(WindowRequest::Clear);
@@ -308,15 +302,10 @@ impl Window for FSTab {
                         targetted.open();
                     }
                 }
-
-                Ok(())
             }
-            _ => Err("no match for provided key".to_string())
+            _ => ()
         };
 
         self.requests.push(WindowRequest::Redraw);
-
-        ret
-
     }
 }

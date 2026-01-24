@@ -1,11 +1,12 @@
 # demys
-Lightweight console text editor. Simplifies window/tab management, config/settings, no extra unused (by me) features.
+
+Lightweight command line editor. Based on Vim, but is (demys)tified.
 
 ---
 ### design goals
 
-- Similar feel to vim
-- Easier to multitask
+- Basic controls of Vim, stripped of complex commands
+- Easier to control windows/tabs
 - Easy to edit preferences (no googling)
 
 ### planned features

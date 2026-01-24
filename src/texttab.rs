@@ -1,5 +1,5 @@
 use std::fs;
-use std::fs::read_dir;
+use std::fs::{read_dir, write};
 use std::io::Cursor;
 use std::path::PathBuf;
 use crossterm::event::KeyCode;
@@ -43,26 +43,24 @@ impl Window for TextTab {
 
         out
     }
-    fn input(&mut self, key: KeyCode) -> Result<(), String> {
-        let ret = match key {
-            KeyCode::Backspace => self.tb.delete(1),
-            KeyCode::Enter => self.tb.insert("\n"),
-            KeyCode::F(12) => {self.tb.save(); Ok(())},
-            
-            KeyCode::Up => self.tb.cursor_move_by(Some(-1), None),
-            KeyCode::Down => self.tb.cursor_move_by(Some(1), None),
-            KeyCode::Left => self.tb.cursor_move_by(None, Some(-1)),
-            KeyCode::Right => self.tb.cursor_move_by(None, Some(1)),
+    fn input(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Backspace => { self.tb.delete(1); }
+            KeyCode::Enter => { self.tb.insert("\n"); }
+            KeyCode::F(12) => {
+                self.tb.save();
+            }
 
+            KeyCode::Up => { self.tb.cursor_move_by(Some(-1), None); }
+            KeyCode::Down => { self.tb.cursor_move_by(Some(1), None); }
+            KeyCode::Left => { self.tb.cursor_move_by(None, Some(-1)); }
+            KeyCode::Right => { self.tb.cursor_move_by(None, Some(1)); }
 
-            KeyCode::Char(ch) => self.tb.insert(&ch.to_string()),
-            _ => Err("no match for provided key".to_string())
+            KeyCode::Char(ch) => { self.tb.insert(&ch.to_string()); }
+            _ => ()
         };
 
-        self.requests.push(WindowRequest::Cursor(Some((self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into())));
         self.requests.push(WindowRequest::Redraw);
-
-        ret
     }
     fn on_focus(&mut self) {
         self.requests.push(WindowRequest::Cursor(Some(
@@ -72,8 +70,8 @@ impl Window for TextTab {
     fn leave_focus(&mut self) {
         self.requests.push(WindowRequest::Cursor(None));
     }
-    fn poll(&mut self) -> Vec<WindowRequest> {
-        std::mem::take(&mut self.requests)
+    fn requests(&mut self) -> &mut Vec<WindowRequest> {
+        &mut self.requests
     }
 }
 

@@ -1,14 +1,13 @@
 # todo
-last updated 1.20.2026 9:48pm
+last updated 1.23.2026 9:43pm
 
 ---
 
 ## priority
-- save/exit
-- better file system tab (scrolling, opening folders)
+- bounds checking for fstab
+- scrollable text in fstab and texttab
 - controls to split windows
 
 ## secondary
-- open from command line
 - start edit system
 - cli to config windows

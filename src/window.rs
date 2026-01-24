@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use crossterm::event::KeyCode;
 use crate::buffer::TextBuffer;
 use crate::GridPos;
+use std::error::Error;
 use crate::style::{StyleItem, };
 // holds list of tabs, as well as file system if no tabs are open
 // basically just forwards inputs, display requests to correct tab
@@ -23,33 +24,16 @@ pub trait Window {
 
     // returns string representation of tab
     fn style(&self, dim: GridPos) -> Vec<StyleItem>;
-    fn input(&mut self, key: KeyCode) -> Result<(),String> { Ok(()) }
+    fn input(&mut self, key: KeyCode) {}
     fn on_focus(&mut self) {}
     fn leave_focus(&mut self) {}
     fn on_resize(&mut self, dim: GridPos) {}
 
-    fn poll(&mut self) -> Vec<WindowRequest> { Vec::new() }
+    // DO NOT OVERRIDE
+    fn poll(&mut self) -> Vec<WindowRequest> { std::mem::take(self.requests()) }
+    fn requests(&mut self) -> &mut Vec<WindowRequest>;
 }
 
-// wraps text to new line past width
-// helper function for Tab::display
-pub fn wrap(text: &str, width: u16) -> String {
-    let width = width as usize;
-    let mut out = String::new();
-    for line in text.split("\n") {
-        // loop until remaining string can be fit
-        let mut split = Vec::new();
-        let mut remaining: String = line.to_string();
-        while remaining.len() > width {
-            split.push(remaining[..width].to_string());
-            remaining.replace_range(0..width, "");
-        }
-
-        split.push(remaining);
-        out += &split.join("\n");
-    }
-    out
-}
 
 // adds spaces to fill unused space in dim
 pub fn pad(text: &str, dim: GridPos) -> String {
