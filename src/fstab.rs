@@ -274,13 +274,20 @@ impl Window for FSTab {
     fn input(&mut self, key: KeyCode) {
         match key {
             KeyCode::Up | KeyCode::Char('k') => {
-                let target = self.line-1;
+                let target = self.line as i16-1;
+                if target < 0 { return; }
+
+                let target = target as u16;
+
+                if self.dir.map_line_child(target).is_none() { return; }
 
                 self.scroll_to(target);
                 self.line = target;
             },
             KeyCode::Down | KeyCode::Char('j') => {
-                let target = self.line+1;
+                let target = self.line + 1;
+
+                if self.dir.map_line_child(target).is_none() { return; }
 
                 self.scroll_to(target);
                 self.line = target;
