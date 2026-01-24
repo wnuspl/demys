@@ -4,11 +4,12 @@ use std::error::Error;
 
 pub mod buffer;
 pub mod window;
-pub mod texttab;
-pub mod fstab;
+pub mod textwindow;
+pub mod fswindow;
 pub mod window_manager;
 pub mod style;
 pub mod layout;
+pub mod tab;
 
 #[derive(Clone,Copy)]
 pub struct GridPos {

@@ -8,28 +8,32 @@ use crate::GridPos;
 use crate::style::{StyleItem, };
 use crate::window::{Window, WindowRequest, pad};
 
-pub struct TextTab {
+pub struct TextWindow {
     tb: TextBuffer,
-    name: String,
-    requests: Vec<WindowRequest>
+    requests: Vec<WindowRequest>,
+    name: String
 }
 
 
 
 // TEXT TAB IMPL
 // Holds text buffers
-impl TextTab {
-    pub fn new(tb: TextBuffer, name: String) -> TextTab {
-        TextTab { tb, name, requests: Vec::new() }
+impl TextWindow {
+    pub fn new(tb: TextBuffer) -> TextWindow {
+        TextWindow { tb, requests: Vec::new(), name: "".into()}
     }
-    pub fn from_file(path: PathBuf) -> TextTab {
-        TextTab { tb: TextBuffer::from(path), name: String::new(), requests: Vec::new() }
+    pub fn from_file(path: PathBuf) -> TextWindow {
+        let name = path.file_name().unwrap().to_string_lossy().into();
+        TextWindow { tb: TextBuffer::from(path), requests: Vec::new(), name }
     }
 }
 
-impl Window for TextTab {
+
+impl Window for TextWindow {
     fn name(&self) -> String {
-        self.name.clone()
+        let saved_symbol = if self.tb.saved { "" }
+            else { "*" };
+        format!("{}{}",saved_symbol,self.name)
     }
     fn style(&self, dim: GridPos) -> Vec<StyleItem> {
         let raw = pad(&format!("{}",self.tb), dim);
@@ -61,6 +65,9 @@ impl Window for TextTab {
         };
 
         self.requests.push(WindowRequest::Redraw);
+        self.requests.push(WindowRequest::Cursor(Some(
+            (self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into()
+        )));
     }
     fn on_focus(&mut self) {
         self.requests.push(WindowRequest::Cursor(Some(

@@ -17,7 +17,7 @@ pub struct TextBuffer {
     lines: Vec<String>,
     pub cursor: (usize, usize),
     pub path: Option<PathBuf>,
-    saved: bool
+    pub saved: bool
 
 }
 impl From<PathBuf> for TextBuffer {

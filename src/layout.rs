@@ -57,13 +57,17 @@ impl Layout {
             current_dim: (0,0).into()
         }
     }
+
+    pub fn set_dim(&mut self, dim: GridPos) {
+        self.current_dim = dim;
+    }
     // set window_pos, border_pos
-    pub fn generate(&mut self, dim: GridPos) {
-        let mut space = self.grid.generate_space(dim, (0,0).into());
+    pub fn generate(&mut self) {
+        let mut space = self.grid.generate_space(self.current_dim, (0,0).into());
 
         self.window_space = mem::take(&mut space.0);
         self.border_space = mem::take(&mut space.1);
-        self.current_dim = dim;
+        self.current_dim = self.current_dim;
     }
 
     pub fn get_windows(&self) -> &Vec<WindowSpace> {

@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use crossterm::cursor::Hide;
 use demys::{GridPos, window};
 use demys::window_manager::WindowManager;
-use demys::fstab::FSTab;
-use demys::texttab::TextTab;
+use demys::fswindow::FSWindow;
+use demys::textwindow::TextWindow;
 
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
-
-
+use demys::tab::TabWindow;
+use demys::window::Window;
 
 struct TuiGuard;
 
@@ -56,20 +56,28 @@ fn main() {
 
     // get window manager
     let mut window_manager = WindowManager::new();
-    window_manager.generate_layout(terminal_dim);
+    window_manager.generate_layout();
 
 
+    let start_tabs: Vec<Box<dyn Window>>;
     // if no files provided
     if file_paths.len() == 0 {
-        window_manager.add_window(FSTab::new(current_dir));
+        //window_manager.add_window(FSWindow::new(current_dir));
+        start_tabs = vec![Box::new(FSWindow::new(current_dir))];
     } else {
+        let mut temp: Vec<Box<dyn Window>> = Vec::new();
 
         // open all files
         for p in file_paths {
-            window_manager.add_window(TextTab::from_file(p));
+            temp.push(Box::new(TextWindow::from_file(p)));
+
+            //window_manager.add_window(TextWindow::from_file(p));
         }
 
+        start_tabs = temp;
     }
+
+    window_manager.add_window(Box::new(TabWindow::new(start_tabs)));
 
 
 
@@ -77,8 +85,6 @@ fn main() {
 
 
     
-    window_manager.clear(&mut stdout);
-    window_manager.draw(&mut stdout);
     stdout.flush();
 
     loop {
@@ -92,12 +98,11 @@ fn main() {
             },
             Event::Resize(w, h) => {
                 terminal_dim = (h as u16, w as u16).into();
-                for w in window_manager.windows.iter_mut() {
-                    w.on_resize(terminal_dim);
-                }
-                window_manager.generate_layout(terminal_dim);
-                window_manager.clear(&mut stdout);
-                window_manager.draw(&mut stdout);
+
+
+                window_manager.resize(terminal_dim);
+                window_manager.reset_draw(&mut stdout);
+
             },
             _ => break
         }

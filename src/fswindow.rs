@@ -3,11 +3,12 @@ use std::fs::read_dir;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use crossterm::event::KeyCode;
-use crate::GridPos;
+use crate::{tab, GridPos};
 use crate::style::{StyleItem, };
-use crate::texttab::TextTab;
+use crate::textwindow::TextWindow;
 use crate::window::{Window, WindowRequest};
 use std::fmt::Error;
+use crate::style::StyleItem::Text;
 
 #[derive(Default)]
 struct ScrollableData {
@@ -199,7 +200,7 @@ impl ToString for DirectoryRep {
 
 
 
-pub struct FSTab {
+pub struct FSWindow {
     line: u16,
 
     dir: DirectoryRep,
@@ -215,16 +216,17 @@ pub struct FSTab {
 
 // FILE SYSTEM TAB IMPL
 // allows navigation of filesystem to open files
-impl FSTab {
-    pub fn new(dir: PathBuf) -> FSTab {
+impl FSWindow {
+    pub fn new(dir: PathBuf) -> FSWindow {
 
         
-        FSTab { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: ScrollableData::default() }
+        FSWindow { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: ScrollableData::default() }
     }
 }
 
 
-impl Scrollable for FSTab {
+
+impl Scrollable for FSWindow {
     fn get_data_mut(&mut self) -> &mut ScrollableData {
         &mut self.scrollable_data
     }
@@ -232,9 +234,9 @@ impl Scrollable for FSTab {
 
 
 
-impl Window for FSTab {
+impl Window for FSWindow {
     fn name(&self) -> String {
-        "File Explorer".to_string()
+        "Explorer".parse().unwrap()
     }
     fn on_resize(&mut self, dim: GridPos) {
         self.scrollable_data.total_lines = 1000;
@@ -300,8 +302,8 @@ impl Window for FSTab {
 
                 if !targetted.is_dir {
                     // open new text tab
-                    let opened = Box::new(TextTab::from_file(targetted.dir.clone()));
-                    self.requests.push(WindowRequest::ReplaceWindow(opened));
+                    let opened = Box::new(TextWindow::from_file(targetted.dir.clone()));
+                    self.requests.push(WindowRequest::AddWindow(opened));
                 } else {
                     if targetted.is_open {
                         targetted.close();

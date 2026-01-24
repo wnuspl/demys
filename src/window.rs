@@ -16,12 +16,13 @@ pub enum WindowRequest {
     Clear,
     Cursor(Option<GridPos>),
     ReplaceWindow(Box<dyn Window>),
+    AddWindow(Box<dyn Window>)
 }
 
 
 pub trait Window {
-    fn name(&self) -> String;
 
+    fn name(&self) -> String { String::new() }
     // returns string representation of tab
     fn style(&self, dim: GridPos) -> Vec<StyleItem>;
     fn input(&mut self, key: KeyCode) {}

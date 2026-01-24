@@ -30,24 +30,31 @@ impl WindowManager {
         }
     }
 
-    pub fn add_window(&mut self, window: impl Window + 'static) {
-        self.windows.push(Box::new(window));
+    pub fn add_window(&mut self, window: Box<dyn Window>) {
+        self.windows.push(window);
         if self.layout.get_windows().len() < self.windows.len() {
             self.layout.grid.split(true);
         }
     }
+    
+    pub fn reset_draw(&mut self, stdout: &mut Stdout) {
+        self.clear(stdout);
+        self.generate_layout();
+        self.draw(stdout);
+    }
 
     // sends input to focused window
     pub fn input(&mut self, key: KeyCode) {
-        if let KeyCode::Tab = key {
-            self.windows[self.focused_window].leave_focus();
-            self.focused_window += 1;
-            if self.focused_window >= self.windows.len() {
-                self.focused_window = 0;
-            }
-            self.windows[self.focused_window].on_focus();
-        } else {
-            self.windows[self.focused_window].input(key);
+        match key {
+            KeyCode::End => {
+                self.windows[self.focused_window].leave_focus();
+                self.focused_window += 1;
+                if self.focused_window >= self.windows.len() {
+                    self.focused_window = 0;
+                }
+                self.windows[self.focused_window].on_focus();
+            },
+            _ => { self.windows[self.focused_window].input(key); }
         }
     }
 
@@ -63,6 +70,7 @@ impl WindowManager {
         let mut redraws = Vec::new();
         let mut clears = Vec::new();
         let mut cursor = Vec::new();
+        let mut adds = Vec::new();
 
         // sort into vecs
         for (i, window) in self.windows.iter_mut().enumerate() {
@@ -71,7 +79,8 @@ impl WindowManager {
                     WindowRequest::Redraw => redraws.push(i),
                     WindowRequest::Clear => clears.push(i),
                     WindowRequest::ReplaceWindow(w) => replacements.push((i, w)),
-                    WindowRequest::Cursor(loc) => cursor.push((i, loc))
+                    WindowRequest::Cursor(loc) => cursor.push((i, loc)),
+                    WindowRequest::AddWindow(w) => adds.push((i, w)),
                 }
             }
         }
@@ -80,6 +89,11 @@ impl WindowManager {
 
         for (i, w) in replacements {
             self.windows[i] = w;
+        }
+        for (i, w) in adds {
+            self.add_window(w);
+
+            self.reset_draw(stdout);
         }
         for i in clears {
             if let Some(WindowSpace { start, dim }) = self.layout.get_windows().get(i) {
@@ -124,8 +138,19 @@ impl WindowManager {
 
 
 
-    pub fn generate_layout(&mut self, dim: GridPos) {
-        self.layout.generate(dim);
+    pub fn generate_layout(&mut self) {
+        self.layout.generate();
+    }
+
+    pub fn resize(&mut self, dim: GridPos) {
+        self.layout.set_dim(dim);
+        self.generate_layout();
+
+        for (i, window_space) in self.layout.get_windows().iter().enumerate() {
+            if let Some(w) = self.windows.get_mut(i) {
+                w.on_resize(window_space.dim);
+            }
+        }
     }
 
 
