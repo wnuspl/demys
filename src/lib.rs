@@ -3,6 +3,8 @@ use std::ops::Add;
 
 pub mod buffer;
 pub mod window;
+pub mod texttab;
+pub mod fstab;
 pub mod window_manager;
 pub mod style;
 pub mod layout;

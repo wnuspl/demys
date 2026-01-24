@@ -1,5 +1,5 @@
 use std::io::{Stdout, Error};
-use crate::window::{FSTab, TextTab, Window, WindowRequest};
+use crate::window::{Window, WindowRequest};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::KeyCode;

@@ -2,9 +2,10 @@ use std::io::{Write, stdout};
 use std::env;
 use std::path::PathBuf;
 use crossterm::cursor::Hide;
-use demys::window::{FSTab, TextTab};
 use demys::{GridPos, window};
 use demys::window_manager::WindowManager;
+use demys::fstab::FSTab;
+use demys::texttab::TextTab;
 
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
@@ -91,6 +92,9 @@ fn main() {
             },
             Event::Resize(w, h) => {
                 terminal_dim = (h as u16, w as u16).into();
+                for w in window_manager.windows.iter_mut() {
+                    w.on_resize(terminal_dim);
+                }
                 window_manager.generate_layout(terminal_dim);
                 window_manager.clear(&mut stdout);
                 window_manager.draw(&mut stdout);
