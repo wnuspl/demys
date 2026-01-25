@@ -1,6 +1,7 @@
 # demys
 
-Lightweight command line editor. Based on Vim, but is (demys)tified.
+Lightweight command line editor. Based on Vim, but is (demys)tified.\
+[Usage Guide](doc.md)
 
 ---
 ### design goals
