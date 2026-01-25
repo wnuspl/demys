@@ -2,7 +2,7 @@ use std::fs::{self, DirEntry};
 use std::fs::read_dir;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::{tab, GridPos};
 use crate::style::{StyleItem, };
 use crate::textwindow::TextWindow;
@@ -273,7 +273,7 @@ impl Window for FSWindow {
     }
 
 
-    fn input(&mut self, key: KeyCode) {
+    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
             KeyCode::Up | KeyCode::Char('k') => {
                 let target = self.line as i16-1;

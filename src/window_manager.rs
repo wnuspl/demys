@@ -3,7 +3,7 @@ use std::error::Error;
 use std::io::Stdout;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
 use crossterm::terminal::{Clear, ClearType};
 use crate::GridPos;
 use crate::style::{Style, StyleItem};
@@ -43,10 +43,19 @@ impl WindowManager {
         self.draw(stdout);
     }
 
+    pub fn remove_window(&mut self, idx: usize) {
+        if self.windows.len() == 1 { return; }
+
+        self.windows.remove(idx);
+        if self.focused_window == self.windows.len() {
+            self.focused_window = self.windows.len() - 1;
+        }
+    }
+
     // sends input to focused window
-    pub fn input(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::End => {
+    pub fn input(&mut self, key: KeyCode, modifier: KeyModifiers) {
+        match (key, modifier) {
+            (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
                 self.windows[self.focused_window].leave_focus();
                 self.focused_window += 1;
                 if self.focused_window >= self.windows.len() {
@@ -54,7 +63,12 @@ impl WindowManager {
                 }
                 self.windows[self.focused_window].on_focus();
             },
-            _ => { self.windows[self.focused_window].input(key); }
+            (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
+                //self.remove_window(self.focused_window);
+                //self.windows[self.focused_window].on_focus();
+            }
+
+            _ => { self.windows[self.focused_window].input(key, modifier); }
         }
     }
 

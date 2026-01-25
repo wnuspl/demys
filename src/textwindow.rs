@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::{read_dir, write};
 use std::io::Cursor;
 use std::path::PathBuf;
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::buffer::TextBuffer;
 use crate::GridPos;
 use crate::style::{StyleItem, };
@@ -47,7 +47,7 @@ impl Window for TextWindow {
 
         out
     }
-    fn input(&mut self, key: KeyCode) {
+    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
             KeyCode::Backspace => { self.tb.delete(1); }
             KeyCode::Enter => { self.tb.insert("\n"); }

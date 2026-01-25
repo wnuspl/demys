@@ -89,10 +89,10 @@ fn main() {
 
     loop {
         match read().unwrap() {
-            Event::Key(KeyEvent { code, kind, .. }) => match kind {
-                KeyEventKind::Press => {
+            Event::Key(KeyEvent { code, kind, modifiers, .. }) => match kind {
+                KeyEventKind::Press | KeyEventKind::Repeat => {
                     if let KeyCode::Esc = code { break; }
-                    window_manager.input(code);
+                    window_manager.input(code, modifiers);
                 },
                 _ => {}
             },

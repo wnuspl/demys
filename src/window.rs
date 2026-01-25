@@ -2,7 +2,7 @@ use std::fs;
 use std::fs::read_dir;
 use std::io::Cursor;
 use std::path::PathBuf;
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::buffer::TextBuffer;
 use crate::GridPos;
 use std::error::Error;
@@ -25,7 +25,7 @@ pub trait Window {
     fn name(&self) -> String { String::new() }
     // returns string representation of tab
     fn style(&self, dim: GridPos) -> Vec<StyleItem>;
-    fn input(&mut self, key: KeyCode) {}
+    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {}
     fn on_focus(&mut self) {}
     fn leave_focus(&mut self) {}
     fn on_resize(&mut self, dim: GridPos) {}

@@ -16,8 +16,8 @@ Passing file paths as arguments will open all the files in separate tabs.
 # navigation
 
 To cycle through tabs, press `Tab`.\
-When on a tab, press `insert` to split into a new window.\
-To cycle through windows, press `end`.\
+When on a tab, press `Ctrl+l` to split into a new window.\
+To cycle through windows, press `Ctrl-n`.\
 Press `Esc` to exit.
 - note: demys will NOT warn about unsaved work.
 

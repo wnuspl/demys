@@ -1,4 +1,4 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use crate::GridPos;
 use crate::style::StyleItem;
 use crate::window::{Window, WindowRequest};
@@ -88,14 +88,14 @@ impl Window for TabWindow {
 
         out
     }
-    fn input(&mut self, key: KeyCode) {
-        match key {
-            KeyCode::Tab => {
+    fn input(&mut self, key: KeyCode, modifier: KeyModifiers) {
+        match (key, modifier) {
+            (KeyCode::Tab, _) => {
                 self.cycle_tab();
             }
 
             // remove current tab, create new window
-            KeyCode::Insert => {
+            (KeyCode::Right | KeyCode::Char('l'), KeyModifiers::CONTROL) => {
                 // can't remove last tab
                 if self.tabs.len() == 1 { return; }
 
@@ -106,7 +106,7 @@ impl Window for TabWindow {
             }
 
             _ => {
-                self.tabs[self.current_tab].input(key);
+                self.tabs[self.current_tab].input(key, modifier);
             }
         }
     }
