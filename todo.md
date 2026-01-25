@@ -1,5 +1,5 @@
 # todo
-last updated 1.23.2026 9:43pm
+last updated 1.24.2026 7:31pm
 
 ---
 
@@ -12,5 +12,7 @@ last updated 1.23.2026 9:43pm
 
 ## secondary
 - highlight current tab
+- hotkey for explorer
+- close window
 - start edit system
 - cli to config windows
