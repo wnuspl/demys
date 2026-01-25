@@ -4,10 +4,13 @@ last updated 1.23.2026 9:43pm
 ---
 
 ## priority
-- bounds checking for fstab
 - scrollable text in fstab and texttab
-- controls to split windows
+- better padding system
+- ctrl+_ commands
+- : commands
+- vim editting basics
 
 ## secondary
+- highlight current tab
 - start edit system
 - cli to config windows
