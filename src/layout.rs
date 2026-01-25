@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::mem;
 use crate::GridPos;
 
@@ -13,11 +14,11 @@ pub struct Layout {
 pub enum Grid {
     Horizontal {
         body: Vec<Box<Grid>>,
-        heights: Vec<f32>
+        scales: Vec<f32>
     },
     Vertical {
         body: Vec<Box<Grid>>,
-        widths: Vec<f32>
+        scales: Vec<f32>
     },
     Single
 }
@@ -61,6 +62,12 @@ impl Layout {
     pub fn set_dim(&mut self, dim: GridPos) {
         self.current_dim = dim;
     }
+    pub fn remove_single(&mut self, idx: usize) -> Result<(), Box<dyn Error>> {
+        let mut remaining = idx;
+        let ret = self.grid.remove_single(&mut remaining);
+        self.generate();
+        ret
+    }
     // set window_pos, border_pos
     pub fn generate(&mut self) {
         let mut space = self.grid.generate_space(self.current_dim, (0,0).into());
@@ -88,15 +95,49 @@ impl Grid {
     fn vsplit() -> Self {
         Self::Vertical {
             body: vec![Box::new(Self::new()), Box::new(Self::new())],
-            widths: vec![0.5, 0.5]
+            scales: vec![0.5, 0.5]
         }
     }
     fn hsplit() -> Self {
         Self::Horizontal {
             body: vec![Box::new(Self::new()), Box::new(Self::new())],
-            heights: vec![0.5, 0.5]
+            scales: vec![0.5, 0.5]
         }
     }
+
+    fn remove_single(&mut self, remaining: &mut usize) -> Result<(), Box<dyn Error>> {
+        match self {
+            Grid::Horizontal { body, scales }
+            | Grid::Vertical { body, scales } => {
+                let mut found = None; // holds local index of target window
+
+                for (i, grid) in body.iter_mut().enumerate() {
+                    if let Grid::Single = **grid {
+
+                        // check if target
+                        if *remaining == 0 {
+                            found = Some(i);
+                            break;
+                        }
+
+                        *remaining -= 1;
+                    } else {
+                        // recurse
+                        grid.remove_single(remaining);
+                    }
+                }
+
+                if let Some(i) = found {
+                    body.remove(i);
+                    scales.remove(i);
+                    *scales = to_dist_vec(scales);
+                }
+            }
+            Grid::Single => if *remaining != 0 { return Err("".into()) }
+        }
+        Ok(())
+    }
+
 
 
     // adds another split to layout, if single, defaults to vertical split
@@ -104,7 +145,7 @@ impl Grid {
     pub fn split(&mut self, vertical:bool) {
         match self {
             Self::Single => *self = if vertical { Self::vsplit() } else { Self::hsplit() },
-            Self::Vertical { body, widths } => {
+            Self::Vertical { body, scales: widths } => {
                 if vertical {
                     // set width to 1/n
                     let w = 1.0 / (body.len() as f32);
@@ -118,7 +159,7 @@ impl Grid {
                     *self.get_body_mut(0).unwrap() = Box::new(inner);
                 }
             },
-            Self::Horizontal { body, heights } => {
+            Self::Horizontal { body, scales: heights } => {
                 if !vertical {
                     // set height to 1/n
                     let h = 1.0 / (body.len() as f32);
@@ -160,7 +201,7 @@ impl Grid {
             }
 
             // Fixed width, variable height
-            Self::Horizontal { body, heights } => {
+            Self::Horizontal { body, scales: heights } => {
                 let available_height = dim.row-(body.len() as u16-1)*Self::BORDER_THICKNESS;
                 let mut vertical_offset = 0;
 
@@ -195,7 +236,7 @@ impl Grid {
 
 
             // Fixed height, variable width
-            Self::Vertical { body, widths } => {
+            Self::Vertical { body, scales: widths } => {
                 let available_width = dim.col-(body.len() as u16-1)*Self::BORDER_THICKNESS;
                 let mut horizontal_offset = 0;
 

@@ -30,6 +30,9 @@ impl WindowManager {
         }
     }
 
+
+
+    // -------- WINDOW MANAGING METHODS --------
     pub fn add_window(&mut self, window: Box<dyn Window>) {
         self.windows.push(window);
         if self.layout.get_windows().len() < self.windows.len() {
@@ -37,19 +40,18 @@ impl WindowManager {
         }
     }
     
-    pub fn reset_draw(&mut self, stdout: &mut Stdout) {
-        self.clear(stdout);
-        self.generate_layout();
-        self.draw(stdout);
-    }
-
     pub fn remove_window(&mut self, idx: usize) {
         if self.windows.len() == 1 { return; }
 
         self.windows.remove(idx);
+
         if self.focused_window == self.windows.len() {
             self.focused_window = self.windows.len() - 1;
         }
+
+        self.layout.remove_single(idx);
+        self.generate_layout();
+
     }
 
     // sends input to focused window
@@ -64,8 +66,8 @@ impl WindowManager {
                 self.windows[self.focused_window].on_focus();
             },
             (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
-                //self.remove_window(self.focused_window);
-                //self.windows[self.focused_window].on_focus();
+                self.remove_window(self.focused_window);
+                self.windows[self.focused_window].on_focus();
             }
 
             _ => { self.windows[self.focused_window].input(key, modifier); }
@@ -78,7 +80,9 @@ impl WindowManager {
 
 
 
-    // Polls all windows, calling appropriate functions to update them
+    // ---------- UPDATE METHOD -----------
+
+    // Polls all windows and deals with updates
     pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
         let mut replacements = Vec::new();
         let mut redraws = Vec::new();
@@ -101,14 +105,22 @@ impl WindowManager {
 
 
 
+        // Window replacements
         for (i, w) in replacements {
             self.windows[i] = w;
         }
+
+
+        // Window additions
         for (i, w) in adds {
             self.add_window(w);
 
             self.reset_draw(stdout);
         }
+
+
+
+        // Clear window
         for i in clears {
             if let Some(WindowSpace { start, dim }) = self.layout.get_windows().get(i) {
                 let mut clr = Vec::new();
@@ -124,24 +136,25 @@ impl WindowManager {
                 self.style.queue(stdout, clr, *start, *dim);
             }
         }
+
+
+        // Redraw window
         for i in redraws {
             self.draw_window(stdout, i);
         }
+
+
+        // Move cursor
         for (i, loc) in cursor {
             if let Some(loc) = loc {
                 if let Some(WindowSpace { start, .. }) = self.layout.get_windows().get(i) {
                     let absolute = loc+*start;
-                    queue!(
-                        stdout,
-                        Show,
-                        MoveTo(absolute.col, absolute.row)
-                    )?;
+                    queue!(stdout,
+                        Show, MoveTo(absolute.col, absolute.row))?;
                 }
             } else {
-                queue!(
-                    stdout,
-                    Hide
-                )?;
+                queue!(stdout,
+                    Hide)?;
             }
         }
 
@@ -152,10 +165,9 @@ impl WindowManager {
 
 
 
-    pub fn generate_layout(&mut self) {
-        self.layout.generate();
-    }
 
+
+    // propogate resize to windows and regenerate layout
     pub fn resize(&mut self, dim: GridPos) {
         self.layout.set_dim(dim);
         self.generate_layout();
@@ -166,12 +178,19 @@ impl WindowManager {
             }
         }
     }
+    pub fn generate_layout(&mut self) {
+        self.layout.generate();
+    }
 
 
 
 
 
 
+    // --------- DRAWING METHODS ------------
+
+
+    // Runs window style through style manager and displays to stdout
     pub fn draw_window(&self, stdout: &mut Stdout, window_idx: usize) {
         let window = self.windows.get(window_idx);
         if let Some(window) = window {
@@ -186,33 +205,46 @@ impl WindowManager {
     }
 
 
+    // complete reset, used to redraw without being called from main
+    pub fn reset_draw(&mut self, stdout: &mut Stdout) {
+        self.clear(stdout);
+        self.generate_layout();
+        self.draw(stdout);
+    }
 
 
 
-
-    // draw all windows/borders
-    // only called on start and resize
+    // Draws all borders and windows
+    // Called on start, resize, reformat
     pub fn draw(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
-        let border_space = self.layout.get_borders();
+        // draw windows
         for i in 0..self.windows.len() {
             self.draw_window(stdout, i);
         }
+
+        // draw borders
+        let border_space = self.layout.get_borders();
 
         for border in border_space {
             let border_start;
             let border_dim;
             let border = match border {
+
+                // Horizontal border drawing
                 BorderSpace::Horizontal { length, thickness, start } => {
                     border_start = *start;
                     border_dim = GridPos::from((*thickness,*length));
 
                     let mut text = String::new();
                     for _ in 0..*length {
-                        text += "━";
+                        text += "─";
                     }
 
                     vec![StyleItem::Text(text)]
                 },
+
+
+                // Vertical border drawing
                 BorderSpace::Vertical { length, thickness, start } => {
                     border_start = *start;
                     border_dim = GridPos::from((*length,*thickness));
@@ -233,8 +265,6 @@ impl WindowManager {
         Ok(())
     }
 
-
-
     // clears the whole screen
     pub fn clear(&self, stdout: &mut Stdout) {
         let _ = stdout.queue(Clear(ClearType::Purge));
@@ -242,4 +272,3 @@ impl WindowManager {
         let _ = stdout.queue(MoveTo(0,0));
     }
 }
-
