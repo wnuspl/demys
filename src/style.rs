@@ -37,7 +37,7 @@ impl Style {
         for item in string.iter() {
             match item {
                 StyleItem::Text(s) => {
-                    let s = s.chars().take(dim.col as usize).collect::<String>();
+                    let s = s.chars().take(dim.col as usize).collect::<String>().replace("\t", &" ".repeat(4));
                     let _ = stdout.queue(Print(s));
                 },
                 StyleItem::Color(idx) => {
@@ -54,7 +54,7 @@ impl Style {
                     let _ = stdout.queue(MoveTo(start.col, start.row+line));
                 }
             }
-            if line > dim.row { break; }
+            if line >= dim.row { break; }
         }
     }
 }

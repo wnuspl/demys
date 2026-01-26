@@ -6,46 +6,9 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use crate::{tab, GridPos};
 use crate::style::{StyleItem, };
 use crate::textwindow::TextWindow;
-use crate::window::{Window, WindowRequest};
+use crate::window::{Window, WindowRequest, Scrollable, ScrollableData, pad};
 use std::fmt::Error;
 use crate::style::StyleItem::Text;
-
-#[derive(Default)]
-struct ScrollableData {
-    screen_rows: u16,
-    scroll_offset: u16,
-    total_lines: u16,
-    scroll_margin: u16
-}
-
-// NOTE: need to account for screen sizes less than scroll_margin
-trait Scrollable {
-    fn get_data_mut(&mut self) -> &mut ScrollableData;
-
-
-    // moves scroll_offset to correct position based on target line
-    fn scroll_to(&mut self, line: u16) -> () {
-        return ();
-        let data = self.get_data_mut();
-
-        let top_line = data.scroll_offset + data.scroll_margin;
-        let bot_line = data.scroll_offset + data.screen_rows - data.scroll_margin;
-
-        if line < top_line {
-            if line < data.scroll_margin { data.scroll_offset = 0; return; } // line is too high, can't fit into box, so just go to top
-
-            let correction = (line as i16)-(top_line as i16);
-            data.scroll_offset = (data.scroll_offset as i16 + correction) as u16;
-        }
-
-        if line < bot_line {
-            if line > data.total_lines-data.scroll_margin { data.scroll_offset = data.total_lines-data.screen_rows; return; } // line is too high, can't fit into box, so just go to top
-
-            let correction = (line as i16)-(bot_line as i16);
-            data.scroll_offset = (data.scroll_offset as i16 + correction) as u16;
-        }
-    }
-}
 
 
 
@@ -218,9 +181,12 @@ pub struct FSWindow {
 // allows navigation of filesystem to open files
 impl FSWindow {
     pub fn new(dir: PathBuf) -> FSWindow {
+        let mut sd = ScrollableData::default();
+        sd.scroll_margin = 2;
+        sd.total_lines = 9999;
 
         
-        FSWindow { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: ScrollableData::default() }
+        FSWindow { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: sd }
     }
 }
 
@@ -239,8 +205,6 @@ impl Window for FSWindow {
         "Explorer".parse().unwrap()
     }
     fn on_resize(&mut self, dim: GridPos) {
-        self.scrollable_data.total_lines = 1000;
-        self.scrollable_data.scroll_margin = 1;
         self.scrollable_data.screen_rows = dim.row;
     }
     fn style(&self, dim: GridPos) -> Vec<StyleItem> {
@@ -265,7 +229,7 @@ impl Window for FSWindow {
             out.push(StyleItem::Color(None));
         }
 
-        out
+        pad(&mut out, dim)
     }
 
     fn requests(&mut self) -> &mut Vec<WindowRequest> {
@@ -295,7 +259,6 @@ impl Window for FSWindow {
                 self.line = target;
             },
             KeyCode::Enter => {
-                self.requests.push(WindowRequest::Clear);
 
 
                 let targetted = self.dir.map_line_child(self.line).unwrap();

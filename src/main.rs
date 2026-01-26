@@ -88,6 +88,7 @@ fn main() {
     stdout.flush();
 
     loop {
+        let mut reset = false;
         match read().unwrap() {
             Event::Key(KeyEvent { code, kind, modifiers, .. }) => match kind {
                 KeyEventKind::Press | KeyEventKind::Repeat => {
@@ -101,12 +102,15 @@ fn main() {
 
 
                 window_manager.resize(terminal_dim);
-                window_manager.reset_draw(&mut stdout);
+                reset = true;
 
             },
             _ => break
         }
         window_manager.update(&mut stdout);
+        if reset {
+            window_manager.reset_draw(&mut stdout);
+        }
         stdout.flush();
     }
 

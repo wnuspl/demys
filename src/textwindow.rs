@@ -6,12 +6,13 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use crate::buffer::TextBuffer;
 use crate::GridPos;
 use crate::style::{StyleItem, };
-use crate::window::{Window, WindowRequest, pad};
+use crate::window::{Window, WindowRequest, pad, ScrollableData, Scrollable};
 
 pub struct TextWindow {
     tb: TextBuffer,
     requests: Vec<WindowRequest>,
-    name: String
+    name: String,
+    scrollable_data: ScrollableData,
 }
 
 
@@ -20,11 +21,11 @@ pub struct TextWindow {
 // Holds text buffers
 impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
-        TextWindow { tb, requests: Vec::new(), name: "".into()}
+        TextWindow { tb, requests: Vec::new(), name: "".into(), scrollable_data: ScrollableData::default(), }
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
-        TextWindow { tb: TextBuffer::from(path), requests: Vec::new(), name }
+        TextWindow { tb: TextBuffer::from(path), requests: Vec::new(), name, scrollable_data: ScrollableData::default() }
     }
 }
 
@@ -36,33 +37,44 @@ impl Window for TextWindow {
         format!("{}{}",saved_symbol,self.name)
     }
     fn style(&self, dim: GridPos) -> Vec<StyleItem> {
-        let raw = pad(&format!("{}",self.tb), dim);
+        let raw = format!("{}", self.tb);
         let mut out = Vec::new();
 
-        for line in raw.split("\n") {
+        for line in raw.split("\n").skip(self.scrollable_data.scroll_offset as usize) {
             out.push(StyleItem::Text(line.to_string()));
-            //out.push(StyleItem::Text(format!("{:<w$}", line, w=dim.col as usize)));
             out.push(StyleItem::LineBreak);
         }
 
-        out
+        // pad
+        pad(&mut out, dim)
     }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
             KeyCode::Backspace => { self.tb.delete(1); }
-            KeyCode::Enter => { self.tb.insert("\n"); }
+            KeyCode::Enter => {
+                self.tb.insert("\n");
+                self.scrollable_data.total_lines = self.tb.len() as u16;
+               // self.scroll_to(self.tb.cursor.0 as u16);
+            }
             KeyCode::F(12) => {
                 self.tb.save();
             }
 
-            KeyCode::Up => { self.tb.cursor_move_by(Some(-1), None); }
-            KeyCode::Down => { self.tb.cursor_move_by(Some(1), None); }
+            KeyCode::Up => {
+                self.tb.cursor_move_by(Some(-1), None);
+                //self.scroll_to(self.tb.cursor.0 as u16);
+            }
+            KeyCode::Down => {
+                self.tb.cursor_move_by(Some(1), None);
+                //self.scroll_to(self.tb.cursor.0 as u16);
+            }
             KeyCode::Left => { self.tb.cursor_move_by(None, Some(-1)); }
             KeyCode::Right => { self.tb.cursor_move_by(None, Some(1)); }
 
             KeyCode::Char(ch) => { self.tb.insert(&ch.to_string()); }
             _ => ()
         };
+
 
         self.requests.push(WindowRequest::Redraw);
         self.requests.push(WindowRequest::Cursor(Some(
@@ -74,6 +86,10 @@ impl Window for TextWindow {
             (self.tb.cursor.0 as u16, self.tb.cursor.1 as u16).into()
         )));
     }
+    fn on_resize(&mut self, dim: GridPos) {
+        self.scrollable_data.screen_rows = dim.row;
+        self.scrollable_data.scroll_margin = 2;
+    }
     fn leave_focus(&mut self) {
         self.requests.push(WindowRequest::Cursor(None));
     }
@@ -83,4 +99,9 @@ impl Window for TextWindow {
 }
 
 
+impl Scrollable for TextWindow {
+    fn get_data_mut(&mut self) -> &mut ScrollableData {
+        &mut self.scrollable_data
+    }
+}
 
