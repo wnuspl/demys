@@ -163,6 +163,7 @@ impl WindowManager {
                 // let window edit canvas
                 window.draw(&mut canvas);
 
+                stdout.queue(Hide);
                 // write canvas to screen
                 canvas.queue_write(stdout);
             }

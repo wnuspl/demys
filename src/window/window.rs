@@ -19,6 +19,7 @@ pub trait Window {
 
     fn name(&self) -> String { String::new() }
     // returns string representation of tab
+    fn input_bypass(&self) -> bool { false }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {}
     fn on_focus(&mut self) {}
     fn leave_focus(&mut self) {}

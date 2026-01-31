@@ -21,7 +21,7 @@ impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
         let mut scrollable_data = ScrollableData::default();
         scrollable_data.scroll_margin = 1;
-        TextWindow { tb, requests: Vec::new(), name: "".into(), scrollable_data, mode: true}
+        TextWindow { tb, requests: Vec::new(), name: "[untitled]".into(), scrollable_data, mode: true}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
@@ -38,18 +38,18 @@ impl Window for TextWindow {
         let saved_symbol = if self.tb.saved { "" } else { "*" };
         format!("{}{}",saved_symbol,self.name)
     }
+    fn input_bypass(&self) -> bool {
+        !self.mode
+    }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         // global controls
         match (key, modifiers) {
             (key, KeyModifiers::CONTROL) => match key {
-                KeyCode::Char('s') => {
-                    self.tb.save();
-                },
                 KeyCode::Char('i') => {
                     self.mode = !self.mode;
                 }
                 _ => ()
-            },
+            }
             _ => ()
         }
 
@@ -69,6 +69,22 @@ impl Window for TextWindow {
                 }
                 _ => ()
             }
+        } else {
+            match (key, modifiers) {
+                (key, KeyModifiers::CONTROL) => match key {
+                    KeyCode::Char('s') => {
+                        self.tb.save();
+                    }
+                    _ => ()
+                }
+
+                (KeyCode::Char('h'), _) => { self.tb.cursor_move_by(None,Some(-1)); }
+                (KeyCode::Char('j'), _) => { self.tb.cursor_move_by(Some(1),None); }
+                (KeyCode::Char('k'), _) => { self.tb.cursor_move_by(Some(-1),None); }
+                (KeyCode::Char('l'), _) => { self.tb.cursor_move_by(None,Some(1)); }
+                _ => ()
+            }
+
         }
 
         self.requests.push(WindowRequest::Redraw);
@@ -84,32 +100,38 @@ impl Window for TextWindow {
             mode_header_color = ThemeColor::Magenta;
         }
 
-        let padding = canvas.get_dim().col - mode_text.len();
-        let mode_header_text = format!("{}{}", mode_text, " ".repeat(padding));
 
-        let mode_header = StyledText::new(mode_header_text)
-            .with(StyleAttribute::BgColor(ThemeColor::Gray))
+        let mode_header = StyledText::new(mode_text.to_string())
             .with(StyleAttribute::Color(mode_header_color))
             .with(StyleAttribute::Bold(true));
 
+        let name_header = StyledText::new(self.name())
+            .with(StyleAttribute::Bold(true));
+
         canvas.write(&mode_header);
+
+        let right_side = canvas.get_dim().col - name_header.len();
+        canvas.write_at(&name_header, Plot::new(0, right_side));
+        canvas.next_line();
+
+        canvas.set_attribute(StyleAttribute::BgColor(ThemeColor::Gray),0,canvas.get_dim().col);
 
 
         let text = format!("{}",self.tb);
 
 
-        let mut prev = Plot::new(0,0);
         for (n, line) in text.split('\n').enumerate() {
-            let line_number = StyledText::new(format!("{} ", n+1))
+            let line_number = StyledText::new(format!("{:<3}", n+1))
                 .with(StyleAttribute::Color(ThemeColor::Green));
             let content = StyledText::new(line.to_string());
             canvas.write(&line_number);
             canvas.write(&content);
-            prev = canvas.get_cursor();
             canvas.next_line();
         }
 
-        canvas.move_to(prev);
+        let cursor = <Plot>::from(self.tb.cursor) + Plot::new(1,3);
+        canvas.move_to(cursor);
+
 
         canvas.show_cursor(true);
     }

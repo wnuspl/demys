@@ -1,17 +1,18 @@
 # todo
-last updated 1.25.2026 1:43am
+last updated 1.31.2026 6:26pm
 
 ---
 
 ## priority
+- rewrite fstab
 - scrollable text in fstab and texttab
-- better padding system
 - : commands
 - vim editting basics
 
 ## secondary
 - highlight current tab
 - hotkey for explorer
+- splitting windows
 - start edit system
 - cli to config windows
 

@@ -10,6 +10,7 @@ use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw
 use demys::textedit::buffer::TextBuffer;
 use demys::textedit::textwindow::TextWindow;
 use demys::window::{TestWindow, Window, WindowManager};
+use demys::window::tab::TabWindow;
 
 struct TuiGuard;
 
@@ -26,6 +27,7 @@ impl Drop for TuiGuard {
 
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
     // init terminal
     let mut stdout = stdout();
     let _ = crossterm::terminal::enable_raw_mode();
@@ -36,14 +38,41 @@ fn main() {
     );
     let _drop = TuiGuard;
 
+    let current_dir = env::current_dir().expect("");
+
+
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    for p in &args[1..] {
+        file_paths.push(p.into());
+    }
+
+
+    let start_tabs: Vec<Box<dyn Window>>;
+    if file_paths.len() == 0 {
+       start_tabs = vec![Box::new(
+           TextWindow::new(TextBuffer::new())
+       )];
+    } else {
+        let mut temp: Vec<Box<dyn Window>> = Vec::new();
+
+        // open all files
+        for p in file_paths {
+            temp.push(Box::new(TextWindow::from_file(p)));
+        }
+
+        start_tabs = temp;
+    }
+
+    let mut tab = TabWindow::new();
+    for t in start_tabs {
+        tab.add_window(t);
+    }
 
 
     let mut window_manager = WindowManager::new();
 
-
-
-
-    window_manager.add_window(Box::new(TextWindow::new(TextBuffer::new())));
+    window_manager.add_window(Box::new(tab));
+    //window_manager.add_window(Box::new(TestWindow::default()));
     //window_manager.add_window(Box::new(TestWindow::default()));
 
 
