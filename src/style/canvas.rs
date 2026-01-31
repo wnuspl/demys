@@ -2,10 +2,10 @@ use std::cmp;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Stdout;
-use crossterm::cursor::MoveTo;
+use crossterm::cursor::{MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
-use crossterm::style::{Attribute, Print, ResetColor, SetAttribute, SetForegroundColor};
-use crate::Plot;
+use crossterm::style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
+use crate::plot::Plot;
 use crate::style::{StyleAttribute, StyledText};
 
 pub struct Canvas {
@@ -14,7 +14,8 @@ pub struct Canvas {
     start_style: HashMap<usize, Vec<StyleAttribute>>,
     end_style: HashMap<usize, Vec<StyleAttribute>>,
     text: String,
-    cursor: usize
+    cursor: usize,
+    show_cursor: bool
 }
 
 impl Canvas {
@@ -26,7 +27,8 @@ impl Canvas {
             start_style: HashMap::new(),
             end_style: HashMap::new(),
             text,
-            cursor: 0
+            cursor: 0,
+            show_cursor: false
         }
     }
 
@@ -55,12 +57,17 @@ impl Canvas {
         Plot::new(self.cursor/self.dim.col, self.cursor%self.dim.col)
     }
 
+    pub fn show_cursor(&mut self, show: bool) {
+        self.show_cursor = show;
+    }
+
 
     // WRITE
     pub fn write(&mut self, text: &StyledText) -> Result<(), Box<dyn Error>> {
         //replace text
         let start = self.cursor;
         let end = cmp::min(self.cursor+text.len(), self.get_end());
+
         self.text.replace_range(start..end, text.get_text());
 
         // add style
@@ -131,24 +138,6 @@ impl Canvas {
             end_col += self.dim.col;
         }
     }
-    fn apply_attribute(stdout: &mut Stdout, attribute: StyleAttribute) {
-        match attribute {
-            StyleAttribute::Color(color) => {
-                let _ = stdout.queue(
-                    SetForegroundColor(color.into())
-                );
-            }
-            StyleAttribute::Bold(bold) => {
-                let _ = stdout.queue(
-                    if bold {
-                        SetAttribute(Attribute::Bold)
-                    } else {
-                        SetAttribute(Attribute::NormalIntensity)
-                    }
-                );
-            }
-        }
-    }
 
     // undoes top of stack, reapply what's underneath
     fn undo_attribute(stdout: &mut Stdout, variant: usize, attribute_stack: &mut HashMap<usize, Vec<StyleAttribute>>) {
@@ -156,17 +145,9 @@ impl Canvas {
             if let Some(this) = att_vec.pop() {
                 // revert if there is old attribute
                 if let Some(prev) = att_vec.last() {
-                    Self::apply_attribute(stdout, *prev);
+                    prev.apply(stdout);
                 } else {
-                    // else, reset
-                    let _ = match this {
-                        StyleAttribute::Color(_) => {
-                            stdout.queue(ResetColor)
-                        }
-                        StyleAttribute::Bold(_) => {
-                            stdout.queue(SetAttribute(Attribute::NormalIntensity))
-                        }
-                    };
+                    this.reset(stdout);
                 }
             }
         }
@@ -212,7 +193,7 @@ impl Canvas {
             // check style applications
             if let Some(att_vec) = self.start_style.get(&prev) {
                 for att in att_vec.iter() {
-                    Self::apply_attribute(stdout, *att);
+                    att.apply(stdout);
                     // add to stack
                     attribute_stack.get_mut(&(usize::from(*att))).unwrap().push(*att);
                 }
@@ -223,6 +204,22 @@ impl Canvas {
             self.queue_chunk(prev, bp, stdout);
 
             prev = bp;
+        }
+
+
+        // put cursor onto screen
+        if self.show_cursor {
+            let term_cursor = (
+                self.cursor % self.dim.col + self.pos.col,
+                self.cursor / self.dim.col + self.pos.row
+            );
+            let _ = queue!(stdout,
+                Show,
+                MoveTo(
+                    term_cursor.0 as u16,
+                    term_cursor.1 as u16
+                )
+            );
         }
     }
 }

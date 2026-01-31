@@ -1,13 +1,13 @@
 use std::error::Error;
 use std::mem;
-use crate::GridPos;
+use crate::plot::Plot;
 
 
 pub struct Layout {
     pub grid: Grid,
     window_space: Vec<WindowSpace>,
     border_space: Vec<BorderSpace>,
-    current_dim: GridPos
+    current_dim: Plot
 }
 
 #[derive(Clone)]
@@ -24,20 +24,20 @@ pub enum Grid {
 }
 
 pub struct WindowSpace {
-    pub dim: GridPos,
-    pub start: GridPos
+    pub dim: Plot,
+    pub start: Plot
 }
 
 pub enum BorderSpace {
     Vertical {
-        length: u16,
-        thickness: u16,
-        start: GridPos
+        length: usize,
+        thickness: usize,
+        start: Plot
     },
     Horizontal {
-        length: u16,
-        thickness: u16,
-        start: GridPos
+        length: usize,
+        thickness: usize,
+        start: Plot
     }
 }
 
@@ -55,11 +55,11 @@ impl Layout {
             grid: Grid::new(),
             window_space: Vec::new(),
             border_space: Vec::new(),
-            current_dim: (0,0).into()
+            current_dim: Plot::new(0,0)
         }
     }
 
-    pub fn set_dim(&mut self, dim: GridPos) {
+    pub fn set_dim(&mut self, dim: Plot) {
         self.current_dim = dim;
     }
     pub fn remove_single(&mut self, idx: usize) -> Result<(), Box<dyn Error>> {
@@ -70,7 +70,7 @@ impl Layout {
     }
     // set window_pos, border_pos
     pub fn generate(&mut self) {
-        let mut space = self.grid.generate_space(self.current_dim, (0,0).into());
+        let mut space = self.grid.generate_space(self.current_dim, Plot::new(0,0));
 
         self.window_space = mem::take(&mut space.0);
         self.border_space = mem::take(&mut space.1);
@@ -88,7 +88,7 @@ impl Layout {
 
 
 impl Grid {
-    const BORDER_THICKNESS: u16 = 1;
+    const BORDER_THICKNESS: usize = 1;
     pub fn new() -> Self {
         Self::Single
     }
@@ -192,7 +192,7 @@ impl Grid {
     // main function of window layout
     // maps window to physical position in terminal based on size
     // return is Vec<dim, start>
-    pub fn generate_space(&self, dim: GridPos, start: GridPos) -> (Vec<WindowSpace>, Vec<BorderSpace>) {
+    pub fn generate_space(&self, dim: Plot, start: Plot) -> (Vec<WindowSpace>, Vec<BorderSpace>) {
         let mut windows = Vec::new();
         let mut borders = Vec::new();
         match &self {
@@ -202,16 +202,16 @@ impl Grid {
 
             // Fixed width, variable height
             Self::Horizontal { body, scales: heights } => {
-                let available_height = dim.row-(body.len() as u16-1)*Self::BORDER_THICKNESS;
+                let available_height = dim.row-(body.len() as usize-1)*Self::BORDER_THICKNESS;
                 let mut vertical_offset = 0;
 
                 let mut iter = body.iter().zip(heights.iter()).peekable();
 
                 while let Some((layout, height_percent)) = iter.next() {
-                    let h = (height_percent*available_height as f32) as u16;
+                    let h = (height_percent*available_height as f32) as usize;
 
                     let mut inner = layout.generate_space(
-                        (h, dim.col).into(),                                // size
+                        Plot::new(h, dim.col),                                // size
                         (start.row+vertical_offset, start.col).into()       // start
                     );
 
@@ -237,13 +237,13 @@ impl Grid {
 
             // Fixed height, variable width
             Self::Vertical { body, scales: widths } => {
-                let available_width = dim.col-(body.len() as u16-1)*Self::BORDER_THICKNESS;
+                let available_width = dim.col-(body.len() as usize-1)*Self::BORDER_THICKNESS;
                 let mut horizontal_offset = 0;
 
                 let mut iter = body.iter().zip(widths.iter()).peekable();
 
                 while let Some((layout, width_percent)) = iter.next() {
-                    let w = (width_percent*available_width as f32) as u16;
+                    let w = (width_percent*available_width as f32) as usize;
 
 
                     let mut inner = layout.generate_space(

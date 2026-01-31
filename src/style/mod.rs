@@ -1,5 +1,5 @@
-pub mod canvas;
-pub mod style;
+mod canvas;
+mod style;
 
 pub use canvas::*;
 pub use style::*;

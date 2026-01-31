@@ -5,14 +5,14 @@ use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
 use crossterm::terminal::{Clear, ClearType};
-use crate::GridPos;
-use crate::style::{Style, StyleItem};
-use crate::layout::*;
+use crate::window::layout::{BorderSpace, Layout, WindowSpace};
+use crate::plot::Plot;
+use crate::style::{Canvas, StyleAttribute, StyledText};
+use crate::style::ThemeColor;
 
 pub struct WindowManager {
     pub layout: Layout,
     pub windows: Vec<Box<dyn Window>>,
-    pub style: Style,
     focused_window: usize,
 }
 
@@ -22,10 +22,11 @@ pub struct WindowManager {
 
 impl WindowManager {
     pub fn new() -> Self {
+        let mut layout = Layout::new();
+        layout.generate();
         Self {
-            layout: Layout::new(),
+            layout,
             windows: Vec::new(),
-            style: Style::new(),
             focused_window: 0,
         }
     }
@@ -84,56 +85,17 @@ impl WindowManager {
 
     // Polls all windows and deals with updates
     pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
-        let mut replacements = Vec::new();
         let mut redraws = Vec::new();
-        let mut clears = Vec::new();
-        let mut cursor = Vec::new();
-        let mut adds = Vec::new();
+        let mut cursors = Vec::new();
 
         // sort into vecs
         for (i, window) in self.windows.iter_mut().enumerate() {
             for request in window.poll() {
                 match request {
                     WindowRequest::Redraw => redraws.push(i),
-                    WindowRequest::Clear => clears.push(i),
-                    WindowRequest::ReplaceWindow(w) => replacements.push((i, w)),
-                    WindowRequest::Cursor(loc) => cursor.push((i, loc)),
-                    WindowRequest::AddWindow(w) => adds.push((i, w)),
+                    WindowRequest::Cursor(loc) => cursors.push((i, loc)),
+                    _ => ()
                 }
-            }
-        }
-
-
-
-        // Window replacements
-        for (i, w) in replacements {
-            self.windows[i] = w;
-        }
-
-
-        // Window additions
-        for (i, w) in adds {
-            self.add_window(w);
-
-            self.reset_draw(stdout);
-        }
-
-
-
-        // Clear window
-        for i in clears {
-            if let Some(WindowSpace { start, dim }) = self.layout.get_windows().get(i) {
-                let mut clr = Vec::new();
-                for _ in 0..dim.row {
-                    let mut space = String::new();
-                    for _ in 0..dim.col {
-                        space += " ";
-                    }
-                    clr.push(StyleItem::Text(space));
-                    clr.push(StyleItem::LineBreak);
-                }
-
-                self.style.queue(stdout, clr, *start, *dim);
             }
         }
 
@@ -145,12 +107,12 @@ impl WindowManager {
 
 
         // Move cursor
-        for (i, loc) in cursor {
+        for (i, loc) in cursors {
             if let Some(loc) = loc {
                 if let Some(WindowSpace { start, .. }) = self.layout.get_windows().get(i) {
                     let absolute = loc+*start;
                     queue!(stdout,
-                        Show, MoveTo(absolute.col, absolute.row))?;
+                        Show, MoveTo(absolute.col as u16, absolute.row as u16))?;
                 }
             } else {
                 queue!(stdout,
@@ -168,7 +130,7 @@ impl WindowManager {
 
 
     // propogate resize to windows and regenerate layout
-    pub fn resize(&mut self, dim: GridPos) {
+    pub fn resize(&mut self, dim: Plot) {
         self.layout.set_dim(dim);
         self.generate_layout();
 
@@ -196,10 +158,13 @@ impl WindowManager {
         if let Some(window) = window {
             let space = self.layout.get_windows().get(window_idx);
             if let Some(WindowSpace { dim, start }) = space {
-                self.style.reset(stdout);
+                let mut canvas = Canvas::new(*start, *dim);
 
-                let text = window.style(*dim);
-                self.style.queue(stdout, text, *start, *dim);
+                // let window edit canvas
+                window.draw(&mut canvas);
+
+                // write canvas to screen
+                canvas.queue_write(stdout);
             }
         }
     }
@@ -213,57 +178,41 @@ impl WindowManager {
     }
 
 
-
-    // Draws all borders and windows
-    // Called on start, resize, reformat
-    pub fn draw(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
-        // draw windows
+    pub fn draw(&self, stdout: &mut Stdout) {
         for i in 0..self.windows.len() {
             self.draw_window(stdout, i);
         }
 
-        // draw borders
-        let border_space = self.layout.get_borders();
-
-        for border in border_space {
-            let border_start;
-            let border_dim;
-            let border = match border {
-
-                // Horizontal border drawing
-                BorderSpace::Horizontal { length, thickness, start } => {
-                    border_start = *start;
-                    border_dim = GridPos::from((*thickness,*length));
-
-                    let mut text = String::new();
-                    for _ in 0..*length {
-                        text += "─";
-                    }
-
-                    vec![StyleItem::Text(text)]
+        for border_space in self.layout.get_borders() {
+            let mut canvas;
+            let content;
+            match border_space {
+                BorderSpace::Vertical {length, thickness, start } => {
+                    canvas = Canvas::new(*start, Plot::new(*length, *thickness));
+                    content = "|".repeat(length*thickness);
                 },
+                BorderSpace::Horizontal {length, thickness, start} => {
+                    canvas = Canvas::new(*start, Plot::new(*length, *thickness));
+                    content = "-".repeat(length*thickness);
+                },
+            }
+            let _ = canvas.write(
+                &StyledText::new(content)
+                    .with(StyleAttribute::Color(ThemeColor::Green))
+                    .with(StyleAttribute::BgColor(ThemeColor::Black))
+                    // .with(StyleAttribute::Bold(true))
 
+            );
 
-                // Vertical border drawing
-                BorderSpace::Vertical { length, thickness, start } => {
-                    border_start = *start;
-                    border_dim = GridPos::from((*length,*thickness));
+            canvas.queue_write(stdout);
 
-                    let mut out = Vec::new();
-                    for _ in 0..*length {
-                        out.push(StyleItem::Text("│".to_string()));
-                        out.push(StyleItem::LineBreak);
-                    }
-
-                    out
-                }
-            };
-
-            self.style.queue(stdout, border, border_start, border_dim);
         }
 
-        Ok(())
+
     }
+
+
+
 
     // clears the whole screen
     pub fn clear(&self, stdout: &mut Stdout) {

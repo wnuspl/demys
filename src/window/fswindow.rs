@@ -3,12 +3,8 @@ use std::fs::read_dir;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use crossterm::event::{KeyCode, KeyModifiers};
-use crate::{tab, GridPos};
-use crate::style::{StyleItem, };
-use crate::textwindow::TextWindow;
-use crate::window::{Window, WindowRequest, Scrollable, ScrollableData, pad};
-use std::fmt::Error;
-use crate::style::StyleItem::Text;
+use crate::plot::Plot;
+use crate::window::{Window, WindowRequest, Scrollable, ScrollableData};
 
 
 
@@ -92,7 +88,7 @@ impl DirectoryRep {
     }
 
 
-    fn _map_line_child(&mut self, remaining: &mut u16) -> Option<&mut DirectoryRep> {
+    fn _map_line_child(&mut self, remaining: &mut usize) -> Option<&mut DirectoryRep> {
 
         // base case, on selected currently
         if *remaining == 0 {
@@ -113,7 +109,7 @@ impl DirectoryRep {
         None
 
     }
-    pub fn map_line_child(&mut self, interface_line: u16) -> Option<&mut DirectoryRep> {
+    pub fn map_line_child(&mut self, interface_line: usize) -> Option<&mut DirectoryRep> {
         let mut r = interface_line;
         self._map_line_child(&mut r)
     } 
@@ -164,7 +160,7 @@ impl ToString for DirectoryRep {
 
 
 pub struct FSWindow {
-    line: u16,
+    line: usize,
 
     dir: DirectoryRep,
 
@@ -204,38 +200,13 @@ impl Window for FSWindow {
     fn name(&self) -> String {
         "Explorer".parse().unwrap()
     }
-    fn on_resize(&mut self, dim: GridPos) {
+    fn on_resize(&mut self, dim: Plot) {
         self.scrollable_data.screen_rows = dim.row;
-    }
-    fn style(&self, dim: GridPos) -> Vec<StyleItem> {
-
-        let mut out = Vec::new();
-
-        for (i, line) in self.dir.to_string().split("\n").enumerate() {
-
-            // continue if not in viewport
-            let i = i as u16;
-            if i < self.scrollable_data.scroll_offset { continue; }
-            if i > self.scrollable_data.scroll_offset+self.scrollable_data.screen_rows { break; }
-
-
-            // highlight selected line
-            if self.line == i {
-                out.push(StyleItem::Color(Some(1)));
-            }
-
-            out.push(StyleItem::Text(line.to_string()));
-            out.push(StyleItem::LineBreak);
-            out.push(StyleItem::Color(None));
-        }
-
-        pad(&mut out, dim)
     }
 
     fn requests(&mut self) -> &mut Vec<WindowRequest> {
         &mut self.requests
     }
-
 
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
@@ -243,7 +214,7 @@ impl Window for FSWindow {
                 let target = self.line as i16-1;
                 if target < 0 { return; }
 
-                let target = target as u16;
+                let target = target as usize;
 
                 if self.dir.map_line_child(target).is_none() { return; }
 
@@ -265,7 +236,8 @@ impl Window for FSWindow {
 
                 if !targetted.is_dir {
                     // open new text tab
-                    let opened = Box::new(TextWindow::from_file(targetted.dir.clone()));
+                    // todo
+                    let opened = Box::new(FSWindow::new("/".into()));
                     self.requests.push(WindowRequest::AddWindow(opened));
                 } else {
                     if targetted.is_open {

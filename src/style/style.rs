@@ -1,21 +1,31 @@
+use std::io::Stdout;
+use crossterm::QueueableCommand;
+use crossterm::style::{Attribute, Color, SetAttribute, SetBackgroundColor, SetForegroundColor};
+
 #[derive(Copy,Clone)]
-pub enum Color {
+pub enum ThemeColor {
     Primary,
     Blue,
     Magenta,
     Yellow,
     Green,
+    Gray,
+    Black,
+    White,
     Background,
 }
-impl From<Color> for crossterm::style::Color {
-    fn from(color: Color) -> Self {
+impl From<ThemeColor> for crossterm::style::Color {
+    fn from(color: ThemeColor) -> Self {
         match color {
-            Color::Primary => crossterm::style::Color::Black,
-            Color::Blue => crossterm::style::Color::Blue,
-            Color::Magenta => crossterm::style::Color::Magenta,
-            Color::Yellow => crossterm::style::Color::Yellow,
-            Color::Green => crossterm::style::Color::Green,
-            Color::Background => crossterm::style::Color::White,
+            ThemeColor::Primary => crossterm::style::Color::Black,
+            ThemeColor::Blue => crossterm::style::Color::Blue,
+            ThemeColor::Magenta => crossterm::style::Color::Magenta,
+            ThemeColor::Yellow => crossterm::style::Color::Yellow,
+            ThemeColor::Green => crossterm::style::Color::Green,
+            ThemeColor::Gray => crossterm::style::Color::Grey,
+            ThemeColor::Black => crossterm::style::Color::Black,
+            ThemeColor::White => crossterm::style::Color::White,
+            ThemeColor::Background => crossterm::style::Color::White,
         }
     }
 }
@@ -23,20 +33,58 @@ impl From<Color> for crossterm::style::Color {
 #[derive(Copy,Clone)]
 #[repr(usize)]
 pub enum StyleAttribute {
-    Color(Color),
+    Color(ThemeColor),
     Bold(bool),
+    BgColor(ThemeColor),
 }
 impl From<StyleAttribute> for usize {
     fn from(attr: StyleAttribute) -> Self {
         match attr {
             StyleAttribute::Color(_) => 0,
             StyleAttribute::Bold(_) => 1,
+            StyleAttribute::BgColor(_) => 2,
         }
     }
 }
 
 impl StyleAttribute {
-    pub const COUNT: usize = 2;
+    pub const COUNT: usize = 3;
+    pub fn apply(&self, stdout: &mut Stdout) {
+        match self {
+            StyleAttribute::Color(color) => {
+                let _ = stdout.queue(
+                    SetForegroundColor((*color).into())
+                );
+            }
+            StyleAttribute::Bold(bold) => {
+                let _ = stdout.queue(
+                    if *bold {
+                        SetAttribute(Attribute::Bold)
+                    } else {
+                        SetAttribute(Attribute::NormalIntensity)
+                    }
+                );
+            }
+            StyleAttribute::BgColor(color) => {
+                let _ = stdout.queue(
+                    SetBackgroundColor((*color).into())
+                );
+            }
+        }
+    }
+    pub fn reset(&self, stdout: &mut Stdout) {
+        let _ = match self {
+            StyleAttribute::Color(_) => {
+                stdout.queue(SetForegroundColor(Color::Reset))
+            }
+            StyleAttribute::Bold(_) => {
+                stdout.queue(SetAttribute(Attribute::NormalIntensity))
+            }
+            StyleAttribute::BgColor(_) => {
+                stdout.queue(SetBackgroundColor(Color::Reset))
+            }
+        };
+    }
 }
 
 
