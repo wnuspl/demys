@@ -4,6 +4,8 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use crossterm::event::{KeyCode, KeyModifiers};
 use crate::plot::Plot;
+use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
+use crate::textedit::textwindow::TextWindow;
 use crate::window::{Window, WindowRequest, Scrollable, ScrollableData};
 
 
@@ -52,6 +54,15 @@ impl From<PathBuf> for DirectoryRep {
 }
 
 impl DirectoryRep {
+    pub fn toggle(&mut self) {
+        if !self.is_dir { return; }
+
+        if self.is_open {
+            self.close();
+        } else {
+            self.open();
+        }
+    }
     pub fn open(&mut self) -> std::io::Result<()> {
         if !self.is_dir { return Ok(()); }
 
@@ -89,14 +100,12 @@ impl DirectoryRep {
 
 
     fn _map_line_child(&mut self, remaining: &mut usize) -> Option<&mut DirectoryRep> {
-
         // base case, on selected currently
         if *remaining == 0 {
             return Some(self);
         }
 
         *remaining -= 1;
-
 
         for c in &mut self.children {
             let dr = c._map_line_child(remaining);
@@ -107,7 +116,6 @@ impl DirectoryRep {
         }
 
         None
-
     }
     pub fn map_line_child(&mut self, interface_line: usize) -> Option<&mut DirectoryRep> {
         let mut r = interface_line;
@@ -133,7 +141,7 @@ impl DirectoryRep {
         let mut out = String::new();
         out += &format!("{}v {}\n", indent, self.name);
 
-        let child_indent = format!("\t{}", indent);
+        let child_indent = format!("  {}", indent);
 
         let mut iter = self.children.iter().peekable();
         while let Some(child) = iter.next() {
@@ -161,14 +169,8 @@ impl ToString for DirectoryRep {
 
 pub struct FSWindow {
     line: usize,
-
     dir: DirectoryRep,
-
     scrollable_data: ScrollableData,
-
-
-
-
     requests: Vec<WindowRequest>,
 }
 
@@ -181,7 +183,6 @@ impl FSWindow {
         sd.scroll_margin = 2;
         sd.total_lines = 9999;
 
-        
         FSWindow { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: sd }
     }
 }
@@ -208,47 +209,52 @@ impl Window for FSWindow {
         &mut self.requests
     }
 
+    fn draw(&self, canvas: &mut Canvas) {
+        let text = self.dir.to_string();
+
+        for (i, line) in text.split("\n").enumerate() {
+            let mut styled = StyledText::new(line.to_string());
+
+            if i == self.line {
+                styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
+            }
+
+            canvas.write(&styled);
+            canvas.to_next_line();
+        }
+    }
+
+
+
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
-            KeyCode::Up | KeyCode::Char('k') => {
-                let target = self.line as i16-1;
-                if target < 0 { return; }
+            KeyCode::Char('j') => {
+                let target = self.line+1;
 
-                let target = target as usize;
-
-                if self.dir.map_line_child(target).is_none() { return; }
-
-                self.scroll_to(target);
-                self.line = target;
-            },
-            KeyCode::Down | KeyCode::Char('j') => {
-                let target = self.line + 1;
-
-                if self.dir.map_line_child(target).is_none() { return; }
-
-                self.scroll_to(target);
-                self.line = target;
-            },
+                if self.dir.map_line_child(target).is_some() {
+                    self.line = target;
+                }
+            }
+            KeyCode::Char('k') => {
+                if self.line > 0 {
+                    self.line -= 1;
+                }
+            }
             KeyCode::Enter => {
-
-
-                let targetted = self.dir.map_line_child(self.line).unwrap();
-
-                if !targetted.is_dir {
-                    // open new text tab
-                    // todo
-                    let opened = Box::new(FSWindow::new("/".into()));
-                    self.requests.push(WindowRequest::AddWindow(opened));
-                } else {
-                    if targetted.is_open {
-                        targetted.close();
+                if let Some(item) = self.dir.map_line_child(self.line) {
+                    if item.is_dir {
+                        item.toggle();
                     } else {
-                        targetted.open();
+                        // request creating new window
+                        let text_window = TextWindow::from_file(item.dir.clone());
+                        self.requests.push(WindowRequest::AddWindow(
+                            Some(Box::new(text_window))
+                        ));
                     }
                 }
             }
             _ => ()
-        };
+        }
 
         self.requests.push(WindowRequest::Redraw);
     }

@@ -158,14 +158,14 @@ impl WindowManager {
         if let Some(window) = window {
             let space = self.layout.get_windows().get(window_idx);
             if let Some(WindowSpace { dim, start }) = space {
-                let mut canvas = Canvas::new(*start, *dim);
+                let mut canvas = Canvas::new(*dim);
 
                 // let window edit canvas
                 window.draw(&mut canvas);
 
                 stdout.queue(Hide);
                 // write canvas to screen
-                canvas.queue_write(stdout);
+                canvas.queue_write(stdout, *start);
             }
         }
     }
@@ -187,14 +187,17 @@ impl WindowManager {
         for border_space in self.layout.get_borders() {
             let mut canvas;
             let content;
+            let pos;
             match border_space {
                 BorderSpace::Vertical {length, thickness, start } => {
-                    canvas = Canvas::new(*start, Plot::new(*length, *thickness));
+                    canvas = Canvas::new(Plot::new(*length, *thickness));
                     content = "|".repeat(length*thickness);
+                    pos = start;
                 },
                 BorderSpace::Horizontal {length, thickness, start} => {
-                    canvas = Canvas::new(*start, Plot::new(*length, *thickness));
+                    canvas = Canvas::new(Plot::new(*length, *thickness));
                     content = "-".repeat(length*thickness);
+                    pos = start;
                 },
             }
             let _ = canvas.write(
@@ -205,7 +208,7 @@ impl WindowManager {
 
             );
 
-            canvas.queue_write(stdout);
+            canvas.queue_write(stdout, *pos);
 
         }
 

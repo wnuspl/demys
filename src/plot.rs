@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{Add, Sub};
+use std::ops::{Add, AddAssign, Sub};
 
 #[derive(Clone,Copy)]
 #[derive(Debug)]
@@ -68,5 +68,11 @@ impl Sub for Plot {
             row: self.row-rhs.row,
             col: self.col-rhs.col
         }
+    }
+}
+
+impl AddAssign for Plot {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
     }
 }

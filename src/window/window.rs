@@ -11,7 +11,7 @@ pub enum WindowRequest {
     Clear,
     Cursor(Option<Plot>),
     ReplaceWindow(Box<dyn Window>),
-    AddWindow(Box<dyn Window>)
+    AddWindow(Option<Box<dyn Window>>)
 }
 
 
@@ -96,8 +96,8 @@ impl Window for TestWindow {
             .with(StyleAttribute::Color(ThemeColor::Blue))
             .with(StyleAttribute::BgColor(ThemeColor::Yellow));
 
-        canvas.write(&size).unwrap();
-        canvas.next_line();
+        canvas.write(&size);
+        canvas.to_next_line();
         canvas.write(&self.content.clone().into());
 
         canvas.show_cursor(true);

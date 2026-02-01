@@ -1,15 +1,19 @@
 use std::cmp;
+use std::cmp::min;
 use std::collections::HashMap;
 use std::error::Error;
 use std::io::Stdout;
 use crossterm::cursor::{MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
+use crossterm::terminal::ClearType;
 use crate::plot::Plot;
 use crate::style::{StyleAttribute, StyledText};
+use crate::window::WindowRequest::Clear;
 
+/// Writeable region that can be written to terminal.
+/// Has an immutable size
 pub struct Canvas {
-    pos: Plot,
     dim: Plot,
     start_style: HashMap<usize, Vec<StyleAttribute>>,
     end_style: HashMap<usize, Vec<StyleAttribute>>,
@@ -18,12 +22,14 @@ pub struct Canvas {
     show_cursor: bool
 }
 
+
 impl Canvas {
-    pub fn new(pos: Plot, dim: Plot) -> Self {
+    /// Create a new and empty canvas
+    pub fn new(dim: Plot) -> Self {
         // text is filled with spaces
         let text = " ".repeat(dim.col*dim.row).to_string();
         Canvas {
-            pos, dim,
+            dim,
             start_style: HashMap::new(),
             end_style: HashMap::new(),
             text,
@@ -34,11 +40,39 @@ impl Canvas {
 
     pub fn get_dim(&self) -> &Plot { &self.dim }
 
+    /// Get flattened last space in canvas
     fn get_end(&self) -> usize { self.dim.col*self.dim.row - 1 }
+
+    /// Moves content of canvas in direction of delta.
+    /// Extra data is lost
+    pub fn shift(&mut self, delta: Plot) {
+        let offset = delta.col + (delta.row*self.get_dim().col);
+
+        let mut new_start_style = HashMap::new();
+        let end = self.get_end();
+        for (mark, att) in self.start_style.drain() {
+            let pos = min(mark+offset, end);
+            new_start_style.insert(pos, att);
+        }
+
+        let mut new_end_style = HashMap::new();
+        for (mark, att) in self.end_style.drain() {
+            let pos = min(mark+offset, end);
+            new_end_style.insert(pos, att);
+        }
+
+        self.start_style = new_start_style;
+        self.end_style = new_end_style;
+
+        self.text = " ".repeat(offset) + &self.text;
+    }
 
 
 
     // CURSOR MOVEMENTS
+
+    /// Moves cursor to specified location.
+    /// Err if greater or equal to dimension bounds
     pub fn move_to(&mut self, pos: Plot) -> Result<(), Box<dyn Error>> {
         if pos.row >= self.dim.row { return Err("row out of bounds".into()); }
         if pos.col >= self.dim.col { return Err("col out of bounds".into()); }
@@ -47,23 +81,39 @@ impl Canvas {
 
         Ok(())
     }
-    // down one line, to first col
-    pub fn next_line(&mut self) -> Result<(), Box<dyn Error>> {
+
+    /// Moves cursor to beginning of next line.
+    /// Err if at last line already
+    pub fn to_next_line(&mut self) -> Result<(), Box<dyn Error>> {
         let cursor = self.get_cursor();
         self.move_to(Plot::new(cursor.row+1, 0))
     }
-    // convert to plot
+
     pub fn get_cursor(&self) -> Plot {
         Plot::new(self.cursor/self.dim.col, self.cursor%self.dim.col)
     }
 
+    /// Last writeable row
+    pub fn last_row(&self) -> usize {
+        self.dim.row - 1
+    }
+
+
+    /// Last writeable column
+    pub fn last_col(&self) -> usize {
+        self.dim.col - 1
+    }
+
+    /// Turn on cursor display when canvas is written
     pub fn show_cursor(&mut self, show: bool) {
         self.show_cursor = show;
     }
 
 
     // WRITE
-    pub fn write(&mut self, text: &StyledText) -> Result<(), Box<dyn Error>> {
+    /// Write text to canvas at current cursor position. Cursor moves to next empty spot.
+    /// Will wrap over lines
+    pub fn write(&mut self, text: &StyledText) {
         //replace text
         let start = self.cursor;
         let end = cmp::min(self.cursor+text.len(), self.get_end());
@@ -72,23 +122,32 @@ impl Canvas {
 
         // add style
         for attribute in text.get_attributes() {
-            self.set_attribute(*attribute, start, end);
+            self.set_attribute_flattened(*attribute, start, end);
         }
 
         self.cursor = end;
 
-        Ok(())
     }
 
+    /// Write text at specified location
+    /// Err if location is invalid
     pub fn write_at(&mut self, text: &StyledText, pos: Plot) -> Result<(), Box<dyn Error>> {
         let saved_pos = self.cursor;
         self.move_to(pos)?;
-        self.write(text)?;
+        self.write(text);
         self.cursor = saved_pos;
         Ok(())
     }
 
-    pub fn set_attribute(&mut self, attribute: StyleAttribute, start: usize, end: usize) {
+
+    /// Apply an attribute to region of canvas
+    pub fn set_attribute(&mut self, attribute: StyleAttribute, start: Plot, end: Plot) {
+        let flat_start = start.row*self.dim.col + start.col;
+        let flat_end = end.row*self.dim.col + end.col;
+        self.set_attribute_flattened(attribute, flat_start, flat_end);
+    }
+
+    fn set_attribute_flattened(&mut self, attribute: StyleAttribute, start: usize, end: usize) {
         // start bookmark
         if let Some(start_pos) = self.start_style.get_mut(&start) {
             start_pos.push(attribute);
@@ -106,7 +165,9 @@ impl Canvas {
 
 
 
-    fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout) {
+    /// Queues chunk of text body to stdout (from start to end)
+    /// Writes based off of self.pos
+    fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
 
@@ -118,14 +179,17 @@ impl Canvas {
 
         //  loop through lines
         for l in start_line..(end_line+1) {
+            if l == end_line {
+                end_col = end;
+            }
 
             // get text slice
             let text = &self.text[first_col..end_col];
 
             // move to first col and l row
             let term_cursor = (
-                (first_col%self.dim.col + self.pos.col) as u16,
-                (l+self.pos.row) as u16
+                (first_col%self.dim.col + pos.col) as u16,
+                (l+pos.row) as u16
             );
 
             let _ = queue!(stdout,
@@ -139,7 +203,8 @@ impl Canvas {
         }
     }
 
-    // undoes top of stack, reapply what's underneath
+    /// Removes attribute from top of stack and calls apply on next attribute.
+    /// Calls reset if last in stack
     fn undo_attribute(stdout: &mut Stdout, variant: usize, attribute_stack: &mut HashMap<usize, Vec<StyleAttribute>>) {
         if let Some(att_vec) = attribute_stack.get_mut(&variant) {
             if let Some(this) = att_vec.pop() {
@@ -154,8 +219,8 @@ impl Canvas {
     }
 
 
-    // queues whole canvas write to stdout
-    pub fn queue_write(&mut self, stdout: &mut Stdout) {
+    /// Write whole canvas to stdout at self.pos
+    pub fn queue_write(&mut self, stdout: &mut Stdout, pos: Plot) {
         // Marks breakpoints, where style needs to be changed
         // uses queue_chunk to write text in between break points
         let mut break_points = vec![0, self.dim.col*self.dim.row-1];
@@ -201,26 +266,54 @@ impl Canvas {
 
 
             // write chunk
-            self.queue_chunk(prev, bp, stdout);
+            self.queue_chunk(prev, bp, stdout, pos);
+
+            // stdout.queue(crossterm::terminal::Clear(crossterm::terminal::ClearType::All));
+            // println!("{},{}",prev,bp);
 
             prev = bp;
         }
+    }
 
 
-        // put cursor onto screen
-        if self.show_cursor {
-            let term_cursor = (
-                self.cursor % self.dim.col + self.pos.col,
-                self.cursor / self.dim.col + self.pos.row
-            );
-            let _ = queue!(stdout,
-                Show,
-                MoveTo(
-                    term_cursor.0 as u16,
-                    term_cursor.1 as u16
-                )
-            );
+    /// Copy the content of one canvas to self starting at pos
+    /// Will not wrap content
+    pub fn merge_canvas(&mut self, pos: Plot, other: &Canvas) {
+        // copy text content
+        let max_line_length = self.get_dim().col - pos.col;
+        for l in 0..other.get_dim().row {
+            // range is line in other canvas
+            let range = l*other.get_dim().col..(l+1)*other.get_dim().col;
+            let text: String = other.text[range]
+                .chars().take(max_line_length).collect(); // take max_line_length
+
+            self.write_at(&text.into(), pos + Plot::new(l,0));
         }
+
+
+        // map style
+        for (start, end) in other.start_style.iter().zip(other.end_style.iter()) {
+            let att_list = start.1;
+            let start_pos = {
+                let (idx, _) = start;
+                let line = idx / other.get_dim().col;
+                let col = idx % other.get_dim().col;
+                Plot::new(line, col) + pos
+            };
+            let end_pos = {
+                let (idx, _) = end;
+                let line = idx / other.get_dim().col;
+                let col = idx % other.get_dim().col;
+                Plot::new(line, col) + pos
+            };
+            for att in att_list {
+                self.set_attribute(*att, start_pos, end_pos);
+            }
+        }
+    }
+
+    pub fn block_content(&mut self) {
+        self.text = ".".repeat(self.dim.col*self.dim.row);
     }
 }
 
@@ -229,12 +322,13 @@ impl Canvas {
 
 #[cfg(test)]
 mod test {
+    use crate::style::ThemeColor;
     use super::*;
 
     #[test]
     fn construction() {
         let dim = Plot::new(20, 40);
-        let canvas = Canvas::new(Plot::new(0, 0),  dim);
+        let canvas = Canvas::new(dim);
 
         assert_eq!(*canvas.get_dim(), dim);
     }
@@ -242,13 +336,13 @@ mod test {
     #[test]
     fn cursor_movement() {
         let dim = Plot::new(20, 40);
-        let mut canvas = Canvas::new(Plot::new(0, 0),  dim);
+        let mut canvas = Canvas::new(dim);
 
         // starts in 0,0
         assert_eq!(canvas.get_cursor(), Plot::new(0, 0));
 
         // next line
-        canvas.next_line().unwrap();
+        canvas.to_next_line().unwrap();
         assert_eq!(canvas.get_cursor(), Plot::new(1, 0));
 
         // move to valid
@@ -259,7 +353,20 @@ mod test {
         assert!(canvas.move_to(Plot::new(dim.row, 0)).is_err());
 
         // next line resets col
-        canvas.next_line().unwrap();
+        canvas.to_next_line().unwrap();
         assert_eq!(canvas.get_cursor(), Plot::new(6, 0));
+    }
+
+    fn set_style() {
+        let dim = Plot::new(20, 40);
+        let mut canvas = Canvas::new(dim);
+
+        canvas.set_attribute(
+            StyleAttribute::Color(ThemeColor::Green),
+            Plot::new(0,0),
+            Plot::new(0, canvas.last_col())
+        );
+        assert_eq!(canvas.start_style.get(&0).unwrap().len(), 1);
+        assert_eq!(canvas.start_style.get(&39).unwrap().len(), 1);
     }
 }

@@ -2,6 +2,8 @@ use std::io::Stdout;
 use crossterm::QueueableCommand;
 use crossterm::style::{Attribute, Color, SetAttribute, SetBackgroundColor, SetForegroundColor};
 
+/// Basically a map to native terminal colors
+/// Exists to be dynamically change color themes
 #[derive(Copy,Clone)]
 pub enum ThemeColor {
     Primary,
@@ -30,6 +32,7 @@ impl From<ThemeColor> for crossterm::style::Color {
     }
 }
 
+/// Wrapper for style options
 #[derive(Copy,Clone)]
 #[repr(usize)]
 pub enum StyleAttribute {
@@ -49,6 +52,7 @@ impl From<StyleAttribute> for usize {
 
 impl StyleAttribute {
     pub const COUNT: usize = 3;
+    /// Apply attribute to stdout
     pub fn apply(&self, stdout: &mut Stdout) {
         match self {
             StyleAttribute::Color(color) => {
@@ -72,6 +76,7 @@ impl StyleAttribute {
             }
         }
     }
+    /// Appy default version of variant to stdout
     pub fn reset(&self, stdout: &mut Stdout) {
         let _ = match self {
             StyleAttribute::Color(_) => {
@@ -88,12 +93,14 @@ impl StyleAttribute {
 }
 
 
+/// Text paired with styling and writing options
 pub struct StyledText {
     text: String,
     attribute: Vec<StyleAttribute>,
     wrap: bool
 }
 impl StyledText {
+    /// Create new from string. Has no style
     pub fn new(text: String) -> Self {
         Self {
             text,
@@ -101,16 +108,20 @@ impl StyledText {
             wrap: true,
         }
     }
+    /// Create StyledText with attributes in line
     pub fn with(mut self, attributes: StyleAttribute) -> Self {
         self.attribute.push(attributes);
         self
     }
+    /// Get raw text content
     pub fn get_text(&self) -> &str {
         &self.text
     }
+    /// Get slice of attributes
     pub fn get_attributes(&self) -> &[StyleAttribute] {
         &self.attribute
     }
+    /// Get raw text content's length
     pub fn len(&self) -> usize {
         self.text.len()
     }

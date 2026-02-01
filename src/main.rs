@@ -9,7 +9,7 @@ use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
 use demys::textedit::buffer::TextBuffer;
 use demys::textedit::textwindow::TextWindow;
-use demys::window::{TestWindow, Window, WindowManager};
+use demys::window::{FSWindow, TestWindow, Window, WindowManager};
 use demys::window::tab::TabWindow;
 
 struct TuiGuard;
@@ -50,7 +50,7 @@ fn main() {
     let start_tabs: Vec<Box<dyn Window>>;
     if file_paths.len() == 0 {
        start_tabs = vec![Box::new(
-           TextWindow::new(TextBuffer::new())
+           FSWindow::new(current_dir)
        )];
     } else {
         let mut temp: Vec<Box<dyn Window>> = Vec::new();
@@ -92,7 +92,7 @@ fn main() {
         match read().unwrap() {
             Event::Key(KeyEvent { code, kind, modifiers, .. }) => match kind {
                 KeyEventKind::Press | KeyEventKind::Repeat => {
-                    if let KeyCode::Esc = code { break; }
+                    if let KeyCode::End = code { break; }
                     window_manager.input(code, modifiers);
                 },
                 _ => {}

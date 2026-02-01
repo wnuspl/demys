@@ -4,6 +4,9 @@ last updated 1.31.2026 6:26pm
 ---
 
 ## priority
+- boldness at end of screen causing issues
+- cursor shifter bugging
+- tbh just making a sub canvas class
 - rewrite fstab
 - scrollable text in fstab and texttab
 - : commands

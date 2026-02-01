@@ -7,6 +7,7 @@ Lightweight command line editor. Based on Vim, but is (demys)tified.\
 ### design goals
 
 - Basic controls of Vim, stripped of complex commands
+- Convenient find/replace
 - Easier to control windows/tabs
 - Easy to edit preferences (no googling)
 
