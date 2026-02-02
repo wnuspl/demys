@@ -74,6 +74,7 @@ impl Canvas {
         let cursor = self.get_cursor();
         self.move_to(Plot::new(cursor.row+1, 0))
     }
+    /// Get cursor position as Plot
     pub fn get_cursor(&self) -> Plot {
         Plot::new(self.cursor/self.dim.col, self.cursor%self.dim.col)
     }
@@ -97,7 +98,6 @@ impl Canvas {
 
     // WRITE
     /// Write text to canvas at current cursor position. Cursor moves to next empty spot.
-    /// Will wrap over lines
     fn _write(&mut self, text: &StyledText, wrap: bool) {
         if self.eol { self.eol = false; self.cursor += 1; }
 
@@ -108,8 +108,8 @@ impl Canvas {
         // if not wrapping
         if !wrap {
             let line = start/self.get_dim().col;
-            let temp = end.min((line+1)*self.get_dim().col);
-            if end != temp {
+            let temp = (line+1)*self.get_dim().col;
+            if end >= temp {
                 // line goes over
                 self.eol = true;
                 end = temp;
@@ -130,12 +130,17 @@ impl Canvas {
 
 
     // PUBLIC WRITING METHODS
+
+    /// Write text from cursor.
     pub fn write(&mut self, text: &StyledText) {
         self._write(text, false);
     }
+    /// Write text from cursor, moving to next line if extending over last column.
     pub fn write_wrap(&mut self, text: &StyledText) {
         self._write(text, true);
     }
+    /// Write text at specified location.
+    /// Err if start pos is out of bounds.
     pub fn write_at(&mut self, text: &StyledText, pos: Plot) -> Result<(), Box<dyn Error>> {
         let saved_pos = self.cursor;
         self.move_to(pos)?;
@@ -143,6 +148,8 @@ impl Canvas {
         self.cursor = saved_pos;
         Ok(())
     }
+    /// Write text at specified location, moving to next line if extending over last column.
+    /// Err if start pos is out of bounds.
     pub fn write_at_wrap(&mut self, text: &StyledText, pos: Plot) -> Result<(), Box<dyn Error>> {
         let saved_pos = self.cursor;
         self.move_to(pos)?;
@@ -152,7 +159,7 @@ impl Canvas {
     }
 
 
-    /// Apply an attribute to region of canvas
+    /// Apply an attribute to region of canvas. (inclusive)..(exclusive)
     pub fn set_attribute(&mut self, attribute: StyleAttribute, start: Plot, end: Plot) -> Result<(), Box<dyn Error>> {
         self.set_attribute_flattened(attribute, self.flatten(start), self.flatten(end))
     }
@@ -178,8 +185,7 @@ impl Canvas {
 
 
 
-    /// Queues chunk of text body to stdout (from start to end)
-    /// Writes based off of self.pos
+    /// Queues chunk of text body to stdout. Parameters start and end are relative to pos, not at pos
     fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
@@ -230,6 +236,7 @@ impl Canvas {
         }
     }
 
+    /// Points to stop text chunk to apply styles.
     fn get_breakpoints(&self) -> Vec<usize> {
         let mut break_points = vec![0, self.dim.col*self.dim.row-1];
 
@@ -246,7 +253,7 @@ impl Canvas {
     }
 
 
-    /// Write whole canvas to stdout at self.pos
+    /// Write whole canvas to stdout at pos.
     pub fn queue_write(&mut self, stdout: &mut Stdout, pos: Plot) {
         // Marks breakpoints, where style needs to be changed
         // uses queue_chunk to write text in between break points
@@ -299,18 +306,19 @@ impl Canvas {
     }
 
 
-    /// Copy the content of one canvas to self starting at pos
-    /// Will not wrap content
+    /// Copy the content of one canvas to self starting at pos.
+    /// Will not wrap content to start of next line if child canvas extends beyond parent bounds.
     pub fn merge_canvas(&mut self, pos: Plot, other: &Canvas) {
         // copy text content
         let max_line_length = self.get_dim().col - pos.col;
         for l in 0..other.get_dim().row {
             // range is line in other canvas
             let range = l*other.get_dim().col..(l+1)*other.get_dim().col;
-            let text: String = other.text[range]
-                .chars().take(max_line_length).collect(); // take max_line_length
+            // let text: String = other.text[range]
+            //     .chars().take(max_line_length).collect(); // take max_line_length
+            let text = &other.text[range];
 
-            self.write_at_wrap(&text.into(), pos + Plot::new(l,0));
+            self.write_at(&text.into(), pos + Plot::new(l,0));
         }
 
 
@@ -335,8 +343,9 @@ impl Canvas {
         }
     }
 
+    /// idk why this is here... replace all text with %
     pub fn block_content(&mut self) {
-        self.text = ".".repeat(self.dim.col*self.dim.row);
+        self.text = "%".repeat(self.dim.col*self.dim.row);
     }
 }
 

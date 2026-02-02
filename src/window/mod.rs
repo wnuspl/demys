@@ -1,3 +1,4 @@
+//! Window functionality and management
 mod window;
 mod fswindow;
 mod window_manager;

@@ -7,6 +7,7 @@ use crate::style::{Canvas, ThemeColor, StyleAttribute, StyledText};
 // basically just forwards inputs, display requests to correct tab
 
 
+/// Sent to super window (likely WindowManager or TabWindow)
 pub enum WindowRequest {
     Redraw,
     Clear,
@@ -16,21 +17,31 @@ pub enum WindowRequest {
 }
 
 
+/// Functionality to be a window held by tab or windowmanager
 pub trait Window {
+
+    /// Give access to requests, will be consumed on update
+    fn requests(&mut self) -> &mut Vec<WindowRequest>;
 
     fn name(&self) -> String { String::new() }
     // returns string representation of tab
+
+    /// Request inputs to be sent to directly to self.
     fn input_bypass(&self) -> bool { false }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {}
+    /// Called when window is set to the active (focused) window
     fn on_focus(&mut self) {}
+    /// Called when leaving focus
     fn leave_focus(&mut self) {}
+    /// Only guaranteed to be called on terminal resize and layout adjustment
     fn on_resize(&mut self, dim: Plot) {}
 
+    /// Gives a writeable canvas
     fn draw(&self, canvas: &mut Canvas) {}
 
-    // DO NOT OVERRIDE
+
+    /// Used by super windows, [do not override]
     fn poll(&mut self) -> Vec<WindowRequest> { std::mem::take(self.requests()) }
-    fn requests(&mut self) -> &mut Vec<WindowRequest>;
 }
 
 
@@ -55,7 +66,7 @@ impl Window for TestWindow {
 
         canvas.write(&size);
         canvas.to_next_line();
-        canvas.write(&self.content.clone().into());
+        canvas.write_wrap(&self.content.clone().into());
 
         canvas.show_cursor(true);
     }

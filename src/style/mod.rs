@@ -1,5 +1,4 @@
-//! Module used for styling and writing into specific regions of terminal.
-//! (will) Contains support for different themes and allows regions to write to terminal without knowing their containers.
+//! Styling and writing into specific regions of terminal.
 mod canvas;
 mod style;
 

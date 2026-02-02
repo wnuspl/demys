@@ -1,3 +1,4 @@
+//! (demys)tified command line editor. Still in prelease version!
 pub mod window;
 pub mod plot;
 pub mod style;

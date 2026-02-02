@@ -9,6 +9,7 @@ use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::style::ThemeColor;
+use crate::window::tab::TabWindow;
 
 pub struct WindowManager {
     pub layout: Layout,
@@ -107,9 +108,13 @@ impl WindowManager {
             self.draw_window(stdout, i);
         }
 
+        // Add window
+        // Is encased in tab
         for window in new_windows {
             if let Some(window) = window {
-                self.add_window(window);
+                let mut tab = TabWindow::new();
+                tab.add_window(window);
+                self.add_window(Box::new(tab));
                 self.reset_draw(stdout);
             }
         }
@@ -209,12 +214,10 @@ impl WindowManager {
                     pos = start;
                 },
             }
-            let _ = canvas.write(
+            let _ = canvas.write_wrap(
                 &StyledText::new(content)
                     .with(StyleAttribute::Color(ThemeColor::Green))
                     .with(StyleAttribute::BgColor(ThemeColor::Black))
-                    // .with(StyleAttribute::Bold(true))
-
             );
 
             canvas.queue_write(stdout, *pos);

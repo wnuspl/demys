@@ -1,5 +1,7 @@
+//! Helper data type
 use std::fmt::Display;
 use std::ops::{Add, AddAssign, Sub};
+
 
 #[derive(Clone,Copy)]
 #[derive(Debug)]

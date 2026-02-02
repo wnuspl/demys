@@ -1,12 +1,11 @@
 # todo
-last updated 1.31.2026 6:26pm
+last updated 2.2.2026 6:01pm
 
 ---
 
 ## priority
-- write settings canvas
 - design tab joining
-- vim editting basics
+- vim editing basics
 - : commands
 
 ## secondary
