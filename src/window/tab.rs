@@ -68,23 +68,24 @@ impl Window for TabWindow {
     }
 
     fn draw(&self, canvas: &mut Canvas) {
-        // // let child_canvas_dim = if self.settings.show_tabs {
-        // //     *canvas.get_dim() - Plot::new(1,0)
-        // // } else {
-        // //     *canvas.get_dim()
-        // // };
-        //
-        // let mut child_canvas = Canvas::new(child_canvas_dim);
+        // create child canvas
+        let child_canvas_dim = if self.settings.show_tabs {
+            *canvas.get_dim() - Plot::new(1,0)
+        } else {
+            *canvas.get_dim()
+        };
 
+        let mut child_canvas = Canvas::new(child_canvas_dim);
+
+        // draw to child
         if let Some(window) = self.windows.get(self.current) {
-            window.draw(canvas);
+            window.draw(&mut child_canvas);
         }
 
 
         // tab drawing
+        let child_offset;
         if self.settings.show_tabs {
-            canvas.shift(Plot::new(1,0));
-
             // create header
             let mut tabs = String::new();
             for window in &self.windows {
@@ -96,17 +97,15 @@ impl Window for TabWindow {
             canvas.set_attribute(
                 StyleAttribute::BgColor(ThemeColor::Gray),
                 Plot::new(0,0),
-                Plot::new(0,canvas.last_col()+1));
+                Plot::new(0,canvas.last_col()+1)).unwrap();
 
-            //canvas.merge_canvas(Plot::new(1,0), &child_canvas);
 
-            // move cursor down 1
-             let below = Plot::new(canvas.get_cursor().row+1, canvas.get_cursor().col);
-             canvas.move_to(below);
-
+            child_offset = Plot::new(1,0);
         } else {
-            // canvas.merge_canvas(Plot::new(0,0), &child_canvas);
+            child_offset = Plot::new(0,0);
         }
+
+        canvas.merge_canvas(child_offset, &child_canvas);
 
     }
 

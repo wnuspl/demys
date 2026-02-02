@@ -170,7 +170,7 @@ impl Window for TextWindow {
 
 
         // write header
-        canvas.move_to(Plot::new(0, canvas.last_col()-10));
+        canvas.move_to(Plot::new(canvas.last_row(), 0));
         canvas.write(&mode_header);
 
         // canvas.move_to(Plot::new(canvas.last_row(), canvas.last_col()-name_header.len()));
@@ -208,7 +208,7 @@ impl Window for TextWindow {
             ),
             cursor,
             cursor+Plot::new(0,1)
-        );
+        ).unwrap();
 
 
     }

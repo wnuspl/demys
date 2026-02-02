@@ -1,6 +1,6 @@
 use std::cmp;
 use std::cmp::min;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Stdout;
 use crossterm::cursor::{MoveTo, Show};
@@ -15,8 +15,8 @@ use crate::window::WindowRequest::Clear;
 /// Has an immutable size
 pub struct Canvas {
     dim: Plot,
-    start_style: HashMap<usize, Vec<StyleAttribute>>,
-    end_style: HashMap<usize, Vec<StyleAttribute>>,
+    start_style: BTreeMap<usize, Vec<StyleAttribute>>,
+    end_style: BTreeMap<usize, Vec<StyleAttribute>>,
     text: String,
     cursor: usize,
     show_cursor: bool
@@ -30,8 +30,8 @@ impl Canvas {
         let text = " ".repeat(dim.col*dim.row).to_string();
         Canvas {
             dim,
-            start_style: HashMap::new(),
-            end_style: HashMap::new(),
+            start_style: BTreeMap::new(),
+            end_style: BTreeMap::new(),
             text,
             cursor: 0,
             show_cursor: false
@@ -39,6 +39,12 @@ impl Canvas {
     }
 
     pub fn get_dim(&self) -> &Plot { &self.dim }
+    pub fn expand(&self, loc: usize) -> Plot {
+        Plot::new(loc/self.dim.col, loc%self.dim.col)
+    }
+    pub fn flatten(&self, plot: Plot) -> usize {
+        plot.row*self.dim.col + plot.col
+    }
 
     /// Get flattened last space in canvas
     fn get_end(&self) -> usize { self.dim.col*self.dim.row - 1 }
@@ -46,25 +52,25 @@ impl Canvas {
     /// Moves content of canvas in direction of delta.
     /// Extra data is lost
     pub fn shift(&mut self, delta: Plot) {
-        let offset = delta.col + (delta.row*self.get_dim().col);
-
-        let mut new_start_style = HashMap::new();
-        let end = self.get_end();
-        for (mark, att) in self.start_style.drain() {
-            let pos = min(mark+offset, end);
-            new_start_style.insert(pos, att);
-        }
-
-        let mut new_end_style = HashMap::new();
-        for (mark, att) in self.end_style.drain() {
-            let pos = min(mark+offset, end);
-            new_end_style.insert(pos, att);
-        }
-
-        self.start_style = new_start_style;
-        self.end_style = new_end_style;
-
-        self.text = " ".repeat(offset) + &self.text;
+        // let offset = delta.col + (delta.row*self.get_dim().col);
+        //
+        // let mut new_start_style = HashMap::new();
+        // let end = self.get_end();
+        // for (mark, att) in self.start_style.drain() {
+        //     let pos = min(mark+offset, end);
+        //     new_start_style.insert(pos, att);
+        // }
+        //
+        // let mut new_end_style = HashMap::new();
+        // for (mark, att) in self.end_style.drain() {
+        //     let pos = min(mark+offset, end);
+        //     new_end_style.insert(pos, att);
+        // }
+        //
+        // self.start_style = new_start_style;
+        // self.end_style = new_end_style;
+        //
+        // self.text = " ".repeat(offset) + &self.text;
     }
 
 
@@ -141,13 +147,12 @@ impl Canvas {
 
 
     /// Apply an attribute to region of canvas
-    pub fn set_attribute(&mut self, attribute: StyleAttribute, start: Plot, end: Plot) {
-        let flat_start = start.row*self.dim.col + start.col;
-        let flat_end = end.row*self.dim.col + end.col;
-        self.set_attribute_flattened(attribute, flat_start, flat_end);
+    pub fn set_attribute(&mut self, attribute: StyleAttribute, start: Plot, end: Plot) -> Result<(), Box<dyn Error>> {
+        self.set_attribute_flattened(attribute, self.flatten(start), self.flatten(end))
     }
 
-    fn set_attribute_flattened(&mut self, attribute: StyleAttribute, start: usize, end: usize) {
+    fn set_attribute_flattened(&mut self, attribute: StyleAttribute, start: usize, end: usize) -> Result<(), Box<dyn Error>> {
+        if start > self.get_end() || end > self.get_end() { return Err("out of bounds".into()); }
         // start bookmark
         if let Some(start_pos) = self.start_style.get_mut(&start) {
             start_pos.push(attribute);
@@ -161,6 +166,8 @@ impl Canvas {
         } else {
             self.end_style.insert(end, vec![attribute]);
         }
+
+        Ok(())
     }
 
 
@@ -170,7 +177,6 @@ impl Canvas {
     fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
-
 
 
 
@@ -218,11 +224,7 @@ impl Canvas {
         }
     }
 
-
-    /// Write whole canvas to stdout at self.pos
-    pub fn queue_write(&mut self, stdout: &mut Stdout, pos: Plot) {
-        // Marks breakpoints, where style needs to be changed
-        // uses queue_chunk to write text in between break points
+    fn get_breakpoints(&self) -> Vec<usize> {
         let mut break_points = vec![0, self.dim.col*self.dim.row-1];
 
         break_points.append(&mut self.start_style.keys()
@@ -234,6 +236,14 @@ impl Canvas {
         break_points.sort();
         break_points.dedup();
 
+        break_points
+    }
+
+
+    /// Write whole canvas to stdout at self.pos
+    pub fn queue_write(&mut self, stdout: &mut Stdout, pos: Plot) {
+        // Marks breakpoints, where style needs to be changed
+        // uses queue_chunk to write text in between break points
 
 
         // initialize attribute stack
@@ -243,10 +253,10 @@ impl Canvas {
         }
 
         // init iter and prev
-        let mut break_points = break_points.into_iter();
-        let mut prev = break_points.next().unwrap();
+        let mut breakpoints = self.get_breakpoints().into_iter();
+        let mut prev = breakpoints.next().unwrap();
 
-        for bp in break_points {
+        for bp in breakpoints {
 
             // check undo styles
             if let Some(att_vec) = self.end_style.get(&prev) {
@@ -272,6 +282,13 @@ impl Canvas {
             // println!("{},{}",prev,bp);
 
             prev = bp;
+        }
+
+        // in case of failure to reset all, so that they don't bleed over
+        for (_, att_vec) in attribute_stack.iter_mut() {
+            for att in att_vec.iter_mut() {
+                att.reset(stdout);
+            }
         }
     }
 
@@ -357,16 +374,51 @@ mod test {
         assert_eq!(canvas.get_cursor(), Plot::new(6, 0));
     }
 
+    #[test]
     fn set_style() {
         let dim = Plot::new(20, 40);
         let mut canvas = Canvas::new(dim);
 
-        canvas.set_attribute(
+        let _ = canvas.set_attribute(
             StyleAttribute::Color(ThemeColor::Green),
             Plot::new(0,0),
             Plot::new(0, canvas.last_col())
         );
         assert_eq!(canvas.start_style.get(&0).unwrap().len(), 1);
-        assert_eq!(canvas.start_style.get(&39).unwrap().len(), 1);
+        assert_eq!(canvas.end_style.get(&39).unwrap().len(), 1);
+
+        let _ = canvas.set_attribute(
+            StyleAttribute::Color(ThemeColor::Green),
+            Plot::new(0,0),
+            Plot::new(canvas.last_row(), canvas.last_col())
+        );
+        assert_eq!(canvas.start_style.get(&0).unwrap().len(), 2);
+    }
+
+
+    #[test]
+    fn breakpoints() {
+        let dim = Plot::new(20, 40);
+        let mut canvas = Canvas::new(dim);
+
+        let text = StyledText::new("hello".to_string())
+            .with(StyleAttribute::Color(ThemeColor::Yellow));
+
+        canvas.write(&text);
+        canvas.move_to(Plot::new(0, 2)).unwrap();
+        canvas.write(&text);
+        canvas.move_to(Plot::new(canvas.last_row(), 0)).unwrap();
+        canvas.write(&text);
+        let bp = canvas.get_breakpoints();
+
+        assert_eq!(bp, vec![
+            0,
+            2,
+            5,
+            2+5,
+            canvas.last_row()*canvas.get_dim().col,
+            canvas.last_row()*canvas.get_dim().col+5,
+            canvas.get_end()
+        ]);
     }
 }
