@@ -119,9 +119,18 @@ impl Window for TabWindow {
                         self.current = (self.current + 1) % self.windows.len();
                         self.requests.push(WindowRequest::Redraw);
                     }
+
                     (KeyCode::Char(';'), _) => {
                         self.settings.show_tabs = !self.settings.show_tabs;
                         self.requests.push(WindowRequest::Redraw);
+                    }
+
+                    (KeyCode::Char('l'), KeyModifiers::CONTROL) => {
+                        if self.windows.len() == 1 { return; }
+
+                        let window = self.windows.remove(self.current);
+                        self.current = (self.current + 1) % self.windows.len();
+                        self.requests.push(WindowRequest::AddWindow(Some(window)));
                     }
                     _ => window.input(key, modifiers),
                 }

@@ -87,6 +87,7 @@ impl WindowManager {
     pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
         let mut redraws = Vec::new();
         let mut cursors = Vec::new();
+        let mut new_windows = Vec::new();
 
         // sort into vecs
         for (i, window) in self.windows.iter_mut().enumerate() {
@@ -94,6 +95,7 @@ impl WindowManager {
                 match request {
                     WindowRequest::Redraw => redraws.push(i),
                     WindowRequest::Cursor(loc) => cursors.push((i, loc)),
+                    WindowRequest::AddWindow(window) => new_windows.push(window),
                     _ => ()
                 }
             }
@@ -103,6 +105,13 @@ impl WindowManager {
         // Redraw window
         for i in redraws {
             self.draw_window(stdout, i);
+        }
+
+        for window in new_windows {
+            if let Some(window) = window {
+                self.add_window(window);
+                self.reset_draw(stdout);
+            }
         }
 
 
