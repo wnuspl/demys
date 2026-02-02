@@ -176,6 +176,14 @@ impl Window for TextWindow {
         canvas.move_to(Plot::new(canvas.last_row(), 0));
         canvas.write(&mode_header);
 
+        canvas.move_to(Plot::new(canvas.last_row(), canvas.last_col()-name_header.len()));
+        canvas.write(&name_header);
+
+
+
+
+
+
 
 
 
@@ -183,8 +191,7 @@ impl Window for TextWindow {
         canvas.move_to(Plot::new(0,0));
         let text = format!("{}",self.tb);
 
-
-
+        // which lines are shown
         let range = (self.scroll, canvas.last_row());
 
         let lines = text.split('\n').enumerate();
@@ -215,8 +222,6 @@ impl Window for TextWindow {
             cursor,
             cursor+Plot::new(0,1)
         );
-
-
     }
 
     fn requests(&mut self) -> &mut Vec<WindowRequest> {

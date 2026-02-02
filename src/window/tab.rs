@@ -3,9 +3,11 @@ use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::window::{Window, WindowRequest};
 
-#[derive(Default)]
 pub struct TabSettings {
     show_tabs: bool,
+}
+impl Default for TabSettings {
+    fn default() -> Self { Self { show_tabs: true } }
 }
 
 pub struct TabWindow {
@@ -23,6 +25,9 @@ impl TabWindow {
             current: 0,
             settings: TabSettings::default(),
         }
+    }
+    pub fn next_tab(&mut self) {
+        self.current = (self.current + 1) % self.windows.len();
     }
     pub fn add_window(&mut self, window: Box<dyn Window>) {
         self.windows.push(window);
@@ -69,13 +74,15 @@ impl Window for TabWindow {
 
     fn draw(&self, canvas: &mut Canvas) {
         // create child canvas
-        let child_canvas_dim = if self.settings.show_tabs {
-            *canvas.get_dim() - Plot::new(1,0)
-        } else {
-            *canvas.get_dim()
+        let child_offset = if self.settings.show_tabs { 1 } else { 0 };
+
+        let child_dim = {
+            let mut dim = *canvas.get_dim();
+            dim.row -= child_offset;
+            dim
         };
 
-        let mut child_canvas = Canvas::new(child_canvas_dim);
+        let mut child_canvas = Canvas::new(child_dim);
 
         // draw to child
         if let Some(window) = self.windows.get(self.current) {
@@ -83,29 +90,33 @@ impl Window for TabWindow {
         }
 
 
-        // tab drawing
-        let child_offset;
+        // draw header
         if self.settings.show_tabs {
-            // create header
-            let mut tabs = String::new();
-            for window in &self.windows {
-                tabs += &format!("{} | ", window.name());
-            }
 
-            let styled_tabs = StyledText::new(tabs);
-            canvas.write_at(&styled_tabs, Plot::new(0,0));
+            // gray bar across
             canvas.set_attribute(
                 StyleAttribute::BgColor(ThemeColor::Gray),
-                Plot::new(0,0),
-                Plot::new(0,canvas.last_col()+1)).unwrap();
+                Plot::new(0, 0),
+                Plot::new(0, canvas.last_col() + 1)).unwrap();
 
 
-            child_offset = Plot::new(1,0);
-        } else {
-            child_offset = Plot::new(0,0);
+            let tab_space = StyledText::new("|".to_string());
+
+            for (i, window) in self.windows.iter().enumerate() {
+                let mut tab = StyledText::new(format!(" {} ", window.name()));
+
+                // set bg white for current
+                if i == self.current { tab = tab.with(StyleAttribute::BgColor(ThemeColor::Background)); }
+
+                canvas.write(&tab_space);
+                canvas.write(&tab);
+            }
+
+            canvas.write(&tab_space);
         }
 
-        canvas.merge_canvas(child_offset, &child_canvas);
+        // merge
+        canvas.merge_canvas(Plot::new(child_offset, 0), &child_canvas);
 
     }
 
@@ -116,7 +127,7 @@ impl Window for TabWindow {
             } else {
                 match (key, modifiers) {
                     (KeyCode::Tab, _) => {
-                        self.current = (self.current + 1) % self.windows.len();
+                        self.next_tab();
                         self.requests.push(WindowRequest::Redraw);
                     }
 
@@ -129,7 +140,8 @@ impl Window for TabWindow {
                         if self.windows.len() == 1 { return; }
 
                         let window = self.windows.remove(self.current);
-                        self.current = (self.current + 1) % self.windows.len();
+                        self.next_tab();
+
                         self.requests.push(WindowRequest::AddWindow(Some(window)));
                     }
                     _ => window.input(key, modifiers),

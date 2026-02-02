@@ -27,7 +27,7 @@ impl From<ThemeColor> for crossterm::style::Color {
             ThemeColor::Gray => crossterm::style::Color::Grey,
             ThemeColor::Black => crossterm::style::Color::Black,
             ThemeColor::White => crossterm::style::Color::White,
-            ThemeColor::Background => crossterm::style::Color::White,
+            ThemeColor::Background => crossterm::style::Color::Reset
         }
     }
 }

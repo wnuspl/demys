@@ -19,6 +19,7 @@ pub struct Canvas {
     end_style: BTreeMap<usize, Vec<StyleAttribute>>,
     text: String,
     cursor: usize,
+    eol: bool,
     show_cursor: bool
 }
 
@@ -34,6 +35,7 @@ impl Canvas {
             end_style: BTreeMap::new(),
             text,
             cursor: 0,
+            eol: false,
             show_cursor: false
         }
     }
@@ -48,30 +50,6 @@ impl Canvas {
 
     /// Get flattened last space in canvas
     fn get_end(&self) -> usize { self.dim.col*self.dim.row - 1 }
-
-    /// Moves content of canvas in direction of delta.
-    /// Extra data is lost
-    pub fn shift(&mut self, delta: Plot) {
-        // let offset = delta.col + (delta.row*self.get_dim().col);
-        //
-        // let mut new_start_style = HashMap::new();
-        // let end = self.get_end();
-        // for (mark, att) in self.start_style.drain() {
-        //     let pos = min(mark+offset, end);
-        //     new_start_style.insert(pos, att);
-        // }
-        //
-        // let mut new_end_style = HashMap::new();
-        // for (mark, att) in self.end_style.drain() {
-        //     let pos = min(mark+offset, end);
-        //     new_end_style.insert(pos, att);
-        // }
-        //
-        // self.start_style = new_start_style;
-        // self.end_style = new_end_style;
-        //
-        // self.text = " ".repeat(offset) + &self.text;
-    }
 
 
 
@@ -91,10 +69,11 @@ impl Canvas {
     /// Moves cursor to beginning of next line.
     /// Err if at last line already
     pub fn to_next_line(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.eol { self.eol = false; return Ok(()); }
+
         let cursor = self.get_cursor();
         self.move_to(Plot::new(cursor.row+1, 0))
     }
-
     pub fn get_cursor(&self) -> Plot {
         Plot::new(self.cursor/self.dim.col, self.cursor%self.dim.col)
     }
@@ -103,7 +82,6 @@ impl Canvas {
     pub fn last_row(&self) -> usize {
         self.dim.row - 1
     }
-
 
     /// Last writeable column
     pub fn last_col(&self) -> usize {
@@ -116,31 +94,59 @@ impl Canvas {
     }
 
 
+
     // WRITE
     /// Write text to canvas at current cursor position. Cursor moves to next empty spot.
     /// Will wrap over lines
-    pub fn write(&mut self, text: &StyledText) {
-        //replace text
-        let start = self.cursor;
-        let end = cmp::min(self.cursor+text.len(), self.get_end());
+    fn _write(&mut self, text: &StyledText, wrap: bool) {
+        if self.eol { self.eol = false; self.cursor += 1; }
 
-        self.text.replace_range(start..end, text.get_text());
+        // define range to edit
+        let start = self.cursor;
+        let mut end = cmp::min(self.cursor+text.len(), self.get_end());
+
+        // if not wrapping
+        if !wrap {
+            let line = start/self.get_dim().col;
+            let temp = end.min((line+1)*self.get_dim().col);
+            if end != temp {
+                // line goes over
+                self.eol = true;
+                end = temp;
+            }
+        }
+
+        self.text.replace_range(start..end, &text.get_text()[0..end-start]);
 
         // add style
         for attribute in text.get_attributes() {
             self.set_attribute_flattened(*attribute, start, end);
         }
 
-        self.cursor = end;
 
+        self.cursor = end;
     }
 
-    /// Write text at specified location
-    /// Err if location is invalid
+
+
+    // PUBLIC WRITING METHODS
+    pub fn write(&mut self, text: &StyledText) {
+        self._write(text, false);
+    }
+    pub fn write_wrap(&mut self, text: &StyledText) {
+        self._write(text, true);
+    }
     pub fn write_at(&mut self, text: &StyledText, pos: Plot) -> Result<(), Box<dyn Error>> {
         let saved_pos = self.cursor;
         self.move_to(pos)?;
-        self.write(text);
+        self._write(text, false);
+        self.cursor = saved_pos;
+        Ok(())
+    }
+    pub fn write_at_wrap(&mut self, text: &StyledText, pos: Plot) -> Result<(), Box<dyn Error>> {
+        let saved_pos = self.cursor;
+        self.move_to(pos)?;
+        self._write(text, true);
         self.cursor = saved_pos;
         Ok(())
     }
@@ -304,7 +310,7 @@ impl Canvas {
             let text: String = other.text[range]
                 .chars().take(max_line_length).collect(); // take max_line_length
 
-            self.write_at(&text.into(), pos + Plot::new(l,0));
+            self.write_at_wrap(&text.into(), pos + Plot::new(l,0));
         }
 
 

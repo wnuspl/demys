@@ -10,7 +10,6 @@ last updated 1.31.2026 6:26pm
 - : commands
 
 ## secondary
-- highlight current tab
 - fix buffer cursor with wrapped lines
 - hotkey for explorer
 - splitting windows

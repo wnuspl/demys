@@ -205,7 +205,7 @@ impl Window for FSWindow {
                 styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
             }
 
-            canvas.write(&styled);
+            canvas.write_wrap(&styled);
             canvas.to_next_line();
         }
     }
