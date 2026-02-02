@@ -6,7 +6,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::textedit::textwindow::TextWindow;
-use crate::window::{Window, WindowRequest, Scrollable, ScrollableData};
+use crate::window::{Window, WindowRequest};
 
 
 
@@ -170,7 +170,6 @@ impl ToString for DirectoryRep {
 pub struct FSWindow {
     line: usize,
     dir: DirectoryRep,
-    scrollable_data: ScrollableData,
     requests: Vec<WindowRequest>,
 }
 
@@ -179,30 +178,17 @@ pub struct FSWindow {
 // allows navigation of filesystem to open files
 impl FSWindow {
     pub fn new(dir: PathBuf) -> FSWindow {
-        let mut sd = ScrollableData::default();
-        sd.scroll_margin = 2;
-        sd.total_lines = 9999;
-
-        FSWindow { line: 0, dir: dir.into(), requests: Vec::new(), scrollable_data: sd }
+        FSWindow { line: 0, dir: dir.into(), requests: Vec::new() }
     }
 }
 
 
-
-impl Scrollable for FSWindow {
-    fn get_data_mut(&mut self) -> &mut ScrollableData {
-        &mut self.scrollable_data
-    }
-}
 
 
 
 impl Window for FSWindow {
     fn name(&self) -> String {
         "Explorer".parse().unwrap()
-    }
-    fn on_resize(&mut self, dim: Plot) {
-        self.scrollable_data.screen_rows = dim.row;
     }
 
     fn requests(&mut self) -> &mut Vec<WindowRequest> {

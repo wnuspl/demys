@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::textedit::buffer::TextBuffer;
-use crate::window::{ScrollableData, Scrollable, WindowRequest, Window};
+use crate::window::{WindowRequest, Window};
 
 enum Mode {
     Normal,
@@ -35,9 +35,10 @@ pub struct TextWindow {
     tb: TextBuffer,
     requests: Vec<WindowRequest>,
     name: String,
-    scrollable_data: ScrollableData,
     mode: Mode,
     settings: TextWindowSettings,
+
+    scroll: usize
 }
 
 
@@ -46,9 +47,7 @@ pub struct TextWindow {
 // Holds text buffers
 impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
-        let mut scrollable_data = ScrollableData::default();
-        scrollable_data.scroll_margin = 1;
-        TextWindow { tb, requests: Vec::new(), name: "[untitled]".into(), scrollable_data, mode: Mode::Normal, settings: TextWindowSettings::default()}
+        TextWindow { tb, requests: Vec::new(), name: "[untitled]".into(), mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
@@ -89,6 +88,10 @@ impl TextWindow {
                 }
                 _ => ()
             }
+
+            (KeyCode::Char('J'), _) => { self.scroll += 10; }
+            (KeyCode::Char('K'), _) => { if self.scroll >= 10 { self.scroll -= 10; } }
+
 
             (KeyCode::Char('h'), _) => { self.tb.cursor_move_by(None,Some(-1)); }
             (KeyCode::Char('j'), _) => { self.tb.cursor_move_by(Some(1),None); }
@@ -140,7 +143,7 @@ impl Window for TextWindow {
         match self.mode {
             Mode::Insert => self.insert_mode_input(key, modifiers),
             Mode::Normal => self.normal_mode_input(key, modifiers),
-        }
+       }
 
         self.requests.push(WindowRequest::Redraw);
     }
@@ -173,8 +176,6 @@ impl Window for TextWindow {
         canvas.move_to(Plot::new(canvas.last_row(), 0));
         canvas.write(&mode_header);
 
-        // canvas.move_to(Plot::new(canvas.last_row(), canvas.last_col()-name_header.len()));
-        // canvas.write(&name_header);
 
 
 
@@ -182,7 +183,12 @@ impl Window for TextWindow {
         canvas.move_to(Plot::new(0,0));
         let text = format!("{}",self.tb);
 
-        for (n, line) in text.split('\n').enumerate() {
+
+
+        let range = (self.scroll, canvas.last_row());
+
+        let lines = text.split('\n').enumerate();
+        for (n, line) in lines.skip(range.0).take(range.1) {
             // line number
             if self.settings.line_numbers {
                 let line_number = StyledText::new(format!("{:<3}", n+1))
@@ -202,13 +208,13 @@ impl Window for TextWindow {
             cursor += Plot::new(0,3);
         }
 
-        canvas.set_attribute(
+        let _ = canvas.set_attribute(
             StyleAttribute::BgColor(
                 if self.settings.dynamic_caret_color { mode_header_color } else { ThemeColor::Gray },
             ),
             cursor,
             cursor+Plot::new(0,1)
-        ).unwrap();
+        );
 
 
     }
@@ -217,11 +223,3 @@ impl Window for TextWindow {
         &mut self.requests
     }
 }
-
-
-impl Scrollable for TextWindow {
-    fn get_data_mut(&mut self) -> &mut ScrollableData {
-        &mut self.scrollable_data
-    }
-}
-
