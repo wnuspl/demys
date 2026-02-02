@@ -61,6 +61,8 @@ impl Canvas {
         if pos.row >= self.dim.row { return Err("row out of bounds".into()); }
         if pos.col >= self.dim.col { return Err("col out of bounds".into()); }
 
+        self.eol = false; // just in case
+
         self.cursor = pos.row * self.dim.col + pos.col;
 
         Ok(())
@@ -69,10 +71,11 @@ impl Canvas {
     /// Moves cursor to beginning of next line.
     /// Err if at last line already
     pub fn to_next_line(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.eol { self.eol = false; return Ok(()); }
-
         let cursor = self.get_cursor();
-        self.move_to(Plot::new(cursor.row+1, 0))
+        let ret = self.move_to(Plot::new(cursor.row+1, 0));
+
+        if self.eol { self.eol = false; return Ok(()); }
+        ret
     }
     /// Get cursor position as Plot
     pub fn get_cursor(&self) -> Plot {
@@ -125,6 +128,8 @@ impl Canvas {
 
 
         self.cursor = end;
+
+        if self.eol { self.cursor -= 1; } // weird eol nonsense
     }
 
 
