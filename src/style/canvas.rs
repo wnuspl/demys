@@ -164,6 +164,10 @@ impl Canvas {
     }
 
 
+
+
+
+
     /// Apply an attribute to region of canvas. (inclusive)..(exclusive)
     pub fn set_attribute(&mut self, attribute: StyleAttribute, start: Plot, end: Plot) -> Result<(), Box<dyn Error>> {
         self.set_attribute_flattened(attribute, self.flatten(start), self.flatten(end))
@@ -190,11 +194,16 @@ impl Canvas {
 
 
 
+
+
+
+
+
     /// Queues chunk of text body to stdout. Parameters start and end are relative to pos, not at pos
+    /// (inclusive...exclusive)
     fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
-
 
 
         let mut first_col = start;
@@ -215,6 +224,8 @@ impl Canvas {
                 (l+pos.row) as u16
             );
 
+
+
             let _ = queue!(stdout,
                 MoveTo(term_cursor.0, term_cursor.1),
                 Print(text)
@@ -225,6 +236,8 @@ impl Canvas {
             end_col += self.dim.col;
         }
     }
+
+
 
     /// Removes attribute from top of stack and calls apply on next attribute.
     /// Calls reset if last in stack
@@ -243,7 +256,7 @@ impl Canvas {
 
     /// Points to stop text chunk to apply styles.
     fn get_breakpoints(&self) -> Vec<usize> {
-        let mut break_points = vec![0, self.dim.col*self.dim.row-1];
+        let mut break_points = vec![0, self.dim.col*self.dim.row];
 
         break_points.append(&mut self.start_style.keys()
             .map(|x| *x).collect());

@@ -3,6 +3,7 @@ pub mod window;
 pub mod plot;
 pub mod style;
 pub mod textedit;
+pub mod draw;
 
 use std::fmt::Display;
 use std::ops::{Add, Sub};

@@ -39,6 +39,8 @@ pub trait Window {
     /// Gives a writeable canvas
     fn draw(&self, canvas: &mut Canvas) {}
 
+    fn run_command(&mut self, cmd: String) {}
+
 
     /// Used by super windows, [do not override]
     fn poll(&mut self) -> Vec<WindowRequest> { std::mem::take(self.requests()) }
@@ -68,7 +70,10 @@ impl Window for TestWindow {
         canvas.to_next_line();
         canvas.write_wrap(&self.content.clone().into());
 
-        canvas.show_cursor(true);
+        canvas.write_at(&"X".into(), Plot::new(canvas.last_row(),0));
+        canvas.write_at(&"S".into(), Plot::new(canvas.last_row(),canvas.last_col()-1));
+        canvas.write_at(&"X".into(), Plot::new(canvas.last_row(),canvas.last_col()));
+        canvas.write_at(&"X".into(), Plot::new(0,canvas.last_col()));
     }
 
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
@@ -79,5 +84,10 @@ impl Window for TestWindow {
             }
             _ => ()
         }
+    }
+
+    fn run_command(&mut self, cmd: String) {
+        self.content += &cmd;
+        self.requests.push(WindowRequest::Redraw);
     }
 }

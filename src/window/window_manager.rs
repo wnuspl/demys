@@ -15,6 +15,7 @@ pub struct WindowManager {
     pub layout: Layout,
     pub windows: Vec<Box<dyn Window>>,
     focused_window: usize,
+    command: Option<String>
 }
 
 
@@ -29,6 +30,7 @@ impl WindowManager {
             layout,
             windows: Vec::new(),
             focused_window: 0,
+            command: None
         }
     }
 
@@ -56,8 +58,39 @@ impl WindowManager {
 
     }
 
+    fn run_command(&mut self, cmd: String) {
+        if let Some(window) = self.windows.get_mut(self.focused_window) {
+            window.run_command(cmd);
+        }
+    }
+
     // sends input to focused window
     pub fn input(&mut self, key: KeyCode, modifier: KeyModifiers) {
+        // accumulate command
+        if let Some(text) = &mut self.command {
+            match key {
+                KeyCode::Char(ch) => *text += &ch.to_string(),
+                KeyCode::Backspace => if text.len() > 0 {
+                    text.remove(text.len()-1);
+                }
+                KeyCode::Enter => {
+                    let cmd = self.command.take().unwrap();
+                    self.run_command(cmd);
+                }
+                _ => ()
+            }
+
+            return;
+        }
+
+        // bypass
+        if let Some(window) = self.windows.get_mut(self.focused_window) {
+            if window.input_bypass() {
+                self.windows[self.focused_window].input(key, modifier);
+                return;
+            }
+        }
+
         match (key, modifier) {
             (KeyCode::Char('n'), KeyModifiers::CONTROL) => {
                 self.windows[self.focused_window].leave_focus();
@@ -67,11 +100,9 @@ impl WindowManager {
                 }
                 self.windows[self.focused_window].on_focus();
             },
-            (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
-                self.remove_window(self.focused_window);
-                self.windows[self.focused_window].on_focus();
+            (KeyCode::Char(':'), _) => {
+                self.command = Some(String::new());
             }
-
             _ => { self.windows[self.focused_window].input(key, modifier); }
         }
     }

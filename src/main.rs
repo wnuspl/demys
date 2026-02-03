@@ -40,6 +40,9 @@ fn main() {
 
     let current_dir = env::current_dir().expect("");
 
+    let mut terminal_dim: Plot = terminal::size().unwrap().into();
+    terminal_dim = terminal_dim.transpose();
+
 
     let mut file_paths: Vec<PathBuf> = Vec::new();
     for p in &args[1..] {
@@ -49,9 +52,10 @@ fn main() {
 
     let start_tabs: Vec<Box<dyn Window>>;
     if file_paths.len() == 0 {
-       start_tabs = vec![Box::new(
-           FSWindow::new(current_dir)
-       )];
+       start_tabs = vec![
+           Box::new(FSWindow::new(current_dir)),
+           //Box::new(TestWindow::default()),
+       ];
     } else {
         let mut temp: Vec<Box<dyn Window>> = Vec::new();
 
@@ -72,12 +76,8 @@ fn main() {
     let mut window_manager = WindowManager::new();
 
     window_manager.add_window(Box::new(tab));
-    //window_manager.add_window(Box::new(TestWindow::default()));
-    //window_manager.add_window(Box::new(TestWindow::default()));
 
 
-    let mut terminal_dim: Plot = terminal::size().unwrap().into();
-    terminal_dim = terminal_dim.transpose();
 
     window_manager.resize(terminal_dim);
     window_manager.generate_layout();

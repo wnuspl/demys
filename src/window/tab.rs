@@ -120,6 +120,14 @@ impl Window for TabWindow {
 
     }
 
+    fn input_bypass(&self) -> bool {
+        if let Some(window) = self.windows.get(self.current) {
+            window.input_bypass()
+        } else {
+            false
+        }
+    }
+
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         if let Some(window) = self.windows.get_mut(self.current) {
             if window.input_bypass() {
@@ -144,9 +152,24 @@ impl Window for TabWindow {
 
                         self.requests.push(WindowRequest::AddWindow(Some(window)));
                     }
+
+                    (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
+                        if self.windows.len() == 1 { /* delete self */ return; }
+
+                        let _ = self.windows.remove(self.current);
+                        self.next_tab();
+
+                        self.requests.push(WindowRequest::Redraw);
+                    }
                     _ => window.input(key, modifiers),
                 }
             }
+        }
+    }
+
+    fn run_command(&mut self, cmd: String) {
+        if let Some(window) = self.windows.get_mut(self.current) {
+            window.run_command(cmd);
         }
     }
 

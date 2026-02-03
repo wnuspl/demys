@@ -133,6 +133,12 @@ impl Window for TextWindow {
             Mode::Insert => true,
         }
     }
+    fn run_command(&mut self, cmd: String) {
+        if cmd == "w" {
+            self.tb.save();
+            self.requests.push(WindowRequest::Redraw);
+        }
+    }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         // global controls
         match (key, modifiers) {
