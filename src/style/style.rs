@@ -1,4 +1,4 @@
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use crossterm::QueueableCommand;
 use crossterm::style::{Attribute, Color, SetAttribute, SetBackgroundColor, SetForegroundColor};
 
@@ -53,7 +53,7 @@ impl From<StyleAttribute> for usize {
 impl StyleAttribute {
     pub const COUNT: usize = 3;
     /// Apply attribute to stdout
-    pub fn apply(&self, stdout: &mut Stdout) {
+    pub fn apply<W: QueueableCommand + Write>(&self, stdout: &mut W) {
         match self {
             StyleAttribute::Color(color) => {
                 let _ = stdout.queue(
@@ -77,7 +77,7 @@ impl StyleAttribute {
         }
     }
     /// Appy default version of variant to stdout
-    pub fn reset(&self, stdout: &mut Stdout) {
+    pub fn reset<W: QueueableCommand + Write>(&self, stdout: &mut W) {
         let _ = match self {
             StyleAttribute::Color(_) => {
                 stdout.queue(SetForegroundColor(Color::Reset))

@@ -1,6 +1,6 @@
 use crate::window::{Window, WindowRequest};
 use std::error::Error;
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
@@ -37,15 +37,17 @@ impl WindowManager {
 
 
     // -------- WINDOW MANAGING METHODS --------
-    pub fn add_window(&mut self, window: Box<dyn Window>) {
+    pub fn add_window(&mut self, window: Box<dyn Window>) -> Result<(), Box<dyn Error>> {
         self.windows.push(window);
         if self.layout.get_windows().len() < self.windows.len() {
             self.layout.grid.split(true);
         }
+
+        Ok(())
     }
     
-    pub fn remove_window(&mut self, idx: usize) {
-        if self.windows.len() == 1 { return; }
+    pub fn remove_window(&mut self, idx: usize) -> Result<(), Box<dyn Error>> {
+        if self.windows.len() == 1 { return Err("only one window".into()); }
 
         self.windows.remove(idx);
 
@@ -54,8 +56,7 @@ impl WindowManager {
         }
 
         self.layout.remove_single(idx);
-        self.generate_layout();
-
+        Ok(())
     }
 
     fn run_command(&mut self, cmd: String) {
@@ -116,16 +117,18 @@ impl WindowManager {
     // ---------- UPDATE METHOD -----------
 
     // Polls all windows and deals with updates
-    pub fn update(&mut self, stdout: &mut Stdout) -> Result<(), Box<dyn Error>> {
+    pub fn update<W: QueueableCommand + Write>(&mut self, stdout: &mut W) -> Result<(), Box<dyn Error>> {
         let mut redraws = Vec::new();
         let mut cursors = Vec::new();
         let mut new_windows = Vec::new();
+        let mut removes = Vec::new();
 
         // sort into vecs
         for (i, window) in self.windows.iter_mut().enumerate() {
             for request in window.poll() {
                 match request {
                     WindowRequest::Redraw => redraws.push(i),
+                    WindowRequest::RemoveSelf => removes.push(i),
                     WindowRequest::Cursor(loc) => cursors.push((i, loc)),
                     WindowRequest::AddWindow(window) => new_windows.push(window),
                     _ => ()
@@ -146,6 +149,12 @@ impl WindowManager {
                 let mut tab = TabWindow::new();
                 tab.add_window(window);
                 self.add_window(Box::new(tab));
+                self.reset_draw(stdout);
+            }
+        }
+
+        for i in removes {
+            if self.remove_window(i).is_ok() {
                 self.reset_draw(stdout);
             }
         }
@@ -198,7 +207,7 @@ impl WindowManager {
 
 
     // Runs window style through style manager and displays to stdout
-    pub fn draw_window(&self, stdout: &mut Stdout, window_idx: usize) {
+    pub fn draw_window<W: QueueableCommand + Write>(&self, stdout: &mut W, window_idx: usize) {
         let window = self.windows.get(window_idx);
         if let Some(window) = window {
             let space = self.layout.get_windows().get(window_idx);
@@ -217,14 +226,14 @@ impl WindowManager {
 
 
     // complete reset, used to redraw without being called from main
-    pub fn reset_draw(&mut self, stdout: &mut Stdout) {
+    pub fn reset_draw<W: QueueableCommand + Write>(&mut self, stdout: &mut W) {
         self.clear(stdout);
         self.generate_layout();
         self.draw(stdout);
     }
 
 
-    pub fn draw(&self, stdout: &mut Stdout) {
+    pub fn draw<W: QueueableCommand + Write>(&self, stdout: &mut W) {
         for i in 0..self.windows.len() {
             self.draw_window(stdout, i);
         }
@@ -262,7 +271,7 @@ impl WindowManager {
 
 
     // clears the whole screen
-    pub fn clear(&self, stdout: &mut Stdout) {
+    pub fn clear<W: QueueableCommand + Write>(&self, stdout: &mut W) {
         let _ = stdout.queue(Clear(ClearType::Purge));
         let _ = stdout.queue(Clear(ClearType::All));
         let _ = stdout.queue(MoveTo(0,0));

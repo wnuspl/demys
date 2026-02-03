@@ -12,7 +12,7 @@ pub enum WindowRequest {
     Redraw,
     Clear,
     Cursor(Option<Plot>),
-    ReplaceWindow(Box<dyn Window>),
+    RemoveSelf,
     AddWindow(Option<Box<dyn Window>>)
 }
 

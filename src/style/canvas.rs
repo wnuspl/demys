@@ -2,7 +2,7 @@ use std::cmp;
 use std::cmp::min;
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
-use std::io::Stdout;
+use std::io::{Stdout, Write};
 use crossterm::cursor::{MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
@@ -49,7 +49,7 @@ impl Canvas {
     }
 
     /// Get flattened last space in canvas
-    fn get_end(&self) -> usize { self.dim.col*self.dim.row - 1 }
+    fn get_end(&self) -> usize { self.dim.col*self.dim.row  }
 
 
 
@@ -201,7 +201,7 @@ impl Canvas {
 
     /// Queues chunk of text body to stdout. Parameters start and end are relative to pos, not at pos
     /// (inclusive...exclusive)
-    fn queue_chunk(&mut self, start: usize, end: usize, stdout: &mut Stdout, pos: Plot) {
+    fn queue_chunk<W: QueueableCommand + Write>(&mut self, start: usize, end: usize, stdout: &mut W, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
 
@@ -225,7 +225,7 @@ impl Canvas {
             );
 
 
-
+            // write!
             let _ = queue!(stdout,
                 MoveTo(term_cursor.0, term_cursor.1),
                 Print(text)
@@ -241,7 +241,7 @@ impl Canvas {
 
     /// Removes attribute from top of stack and calls apply on next attribute.
     /// Calls reset if last in stack
-    fn undo_attribute(stdout: &mut Stdout, variant: usize, attribute_stack: &mut HashMap<usize, Vec<StyleAttribute>>) {
+    fn undo_attribute<W: QueueableCommand + Write>(stdout: &mut W, variant: usize, attribute_stack: &mut HashMap<usize, Vec<StyleAttribute>>) {
         if let Some(att_vec) = attribute_stack.get_mut(&variant) {
             if let Some(this) = att_vec.pop() {
                 // revert if there is old attribute
@@ -272,7 +272,7 @@ impl Canvas {
 
 
     /// Write whole canvas to stdout at pos.
-    pub fn queue_write(&mut self, stdout: &mut Stdout, pos: Plot) {
+    pub fn queue_write<W: QueueableCommand + Write>(&mut self, stdout: &mut W, pos: Plot) {
         // Marks breakpoints, where style needs to be changed
         // uses queue_chunk to write text in between break points
 
@@ -453,5 +453,24 @@ mod test {
             canvas.last_row()*canvas.get_dim().col+5,
             canvas.get_end()
         ]);
+    }
+
+    #[test]
+    fn queue_write() {
+        let dim = Plot::new(1, 10);
+        let mut canvas = Canvas::new(dim);
+
+        let mut buffer: Vec<u8> = Vec::new();
+
+
+
+        canvas.write(&"0123456789".into());
+
+        canvas.queue_chunk(0, canvas.get_end(), &mut buffer, Plot::new(0,0));
+        buffer.flush();
+
+        let string = String::from_utf8(buffer).unwrap();
+
+        println!("{}", string);
     }
 }

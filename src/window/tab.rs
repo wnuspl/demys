@@ -154,7 +154,10 @@ impl Window for TabWindow {
                     }
 
                     (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
-                        if self.windows.len() == 1 { /* delete self */ return; }
+                        if self.windows.len() == 1 {
+                            self.requests.push(WindowRequest::RemoveSelf);
+                            return;
+                        }
 
                         let _ = self.windows.remove(self.current);
                         self.next_tab();
