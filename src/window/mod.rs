@@ -1,11 +1,10 @@
 //! Window functionality and management
 mod window;
-mod fswindow;
 mod window_manager;
 mod layout;
+pub mod fswindow;
 pub mod tab;
-pub mod cmddisplay;
+mod command;
 
 pub use window::*;
-pub use fswindow::*;
 pub use window_manager::*;

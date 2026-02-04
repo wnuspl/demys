@@ -9,7 +9,7 @@ use std::rc::Rc;
 /// Basic Uuid class
 #[derive(Clone)]
 #[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Eq, Hash, PartialEq)]
 pub struct Uuid(pub usize);
 pub trait UniqueNext: Sized+Clone{
     fn next() -> Self;

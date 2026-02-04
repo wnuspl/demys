@@ -1,8 +1,11 @@
+use std::collections::HashMap;
 use std::error::Error;
 use crossterm::event::{KeyCode, KeyModifiers};
+use crate::event::{EventPoster, EventReceiver, Uuid};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
-use crate::window::{Window, WindowRequest};
+use crate::window::{Window, WindowEvent, WindowRequest};
+use crate::window::command::Command;
 
 pub struct TabSettings {
     show_tabs: bool,
@@ -12,26 +15,45 @@ impl Default for TabSettings {
 }
 
 pub struct TabWindow {
-    requests: Vec<WindowRequest>,
-    windows: Vec<Box<dyn Window>>,
+    poster: Option<EventPoster<WindowRequest,Uuid>>,
+    windows: HashMap<Uuid, Box<dyn Window>>,
+    window_order: Vec<Uuid>,
     current: usize,
     settings: TabSettings,
+    dim: Plot,
+    receiver: EventReceiver<WindowRequest,Uuid>
 }
 
 impl TabWindow {
     pub fn new() -> Self {
         Self {
-            requests: Vec::new(),
-            windows: Vec::new(),
+            poster: None,
+            windows: HashMap::new(),
+            window_order: Vec::new(),
             current: 0,
             settings: TabSettings::default(),
+            dim: Plot::new(0,0),
+            receiver: EventReceiver::new(),
         }
     }
     pub fn next_tab(&mut self) {
         self.current = (self.current + 1) % self.windows.len();
     }
-    pub fn add_window(&mut self, window: Box<dyn Window>) {
-        self.windows.push(window);
+    pub fn add_window(&mut self, mut window: Box<dyn Window>) {
+        // get receiver and uuid
+        let r = self.receiver.new_poster();
+        let uuid = r.get_uuid().clone();
+
+        // init window
+        window.init(r);
+
+        // set window
+        self.windows.insert(uuid.clone(), window);
+        self.window_order.push(uuid);
+    }
+
+    pub fn remove_window(&mut self, uuid: Uuid) {
+        self.windows.remove(&uuid);
     }
 
     // true if found a match
@@ -39,48 +61,53 @@ impl TabWindow {
         false
     }
 
+    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
+        let uuid = &self.window_order[self.current];
+        if let Some(window) = self.windows.get_mut(uuid) {
+            if window.input_bypass() {
+                window.event(WindowEvent::Input {key, modifiers});
+            } else {
+                match (key, modifiers) {
+                    (KeyCode::Tab, _) => {
+                        self.next_tab();
+                    }
+
+                    (KeyCode::Char(';'), _) => {
+                        self.settings.show_tabs = !self.settings.show_tabs;
+                        if self.settings.show_tabs {
+                            for (_, window) in self.windows.iter_mut() {
+                                // ERROR HERE
+                        //        window.event(WindowEvent::Resize(self.dim - Plot::new(1, 0)));
+                            }
+                        }
+                    }
+
+                    (KeyCode::Char(':'), _) => {
+                        let command = Command::default();
+                        self.add_window(Box::new(command));
+                    }
+
+                    (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
+                        if self.windows.len() == 1 {
+                            //self.requests.push(WindowRequest::RemoveSelf);
+                            return;
+                        }
+
+                        let _ = self.windows.remove(&uuid);
+                        self.next_tab();
+
+                    }
+                    _ => window.event(WindowEvent::Input {key, modifiers}),
+                }
+            }
+
+            self.poster.as_mut().unwrap().post(WindowRequest::Redraw);
+        }
+    }
+
 }
 
 impl Window for TabWindow {
-    fn requests(&mut self) -> &mut Vec<WindowRequest> {
-        let mut local_requests;
-        if let Some(window) = self.windows.get_mut(self.current) {
-            local_requests = window.poll();
-        } else {
-            local_requests = Vec::new();
-        }
-
-
-        local_requests.retain_mut(|r| match r {
-            WindowRequest::AddWindow(window) => {
-                self.add_window(std::mem::take(window).unwrap());
-                false
-            }
-            WindowRequest::Cursor(loc) => {
-                if !self.settings.show_tabs { return true; }
-                if let Some(loc) = loc {
-                    loc.row += 1;
-                }
-                true
-            }
-            _ => true
-        });
-
-
-
-        self.requests.append(&mut local_requests);
-
-        &mut self.requests
-    }
-
-    fn try_quit(&mut self) -> Result<(), Box<dyn Error>> {
-        for w in self.windows.iter_mut() {
-           let r = w.try_quit();
-            if r.is_err() { return r; }
-        }
-        Ok(())
-    }
-
     fn draw(&self, canvas: &mut Canvas) {
         // create child canvas
         let child_offset = if self.settings.show_tabs { 1 } else { 0 };
@@ -94,7 +121,7 @@ impl Window for TabWindow {
         let mut child_canvas = Canvas::new(child_dim);
 
         // draw to child
-        if let Some(window) = self.windows.get(self.current) {
+        if let Some(window) = self.windows.get(&self.window_order[self.current]) {
             window.draw(&mut child_canvas);
         }
 
@@ -111,8 +138,8 @@ impl Window for TabWindow {
 
             let tab_space = StyledText::new("|".to_string());
 
-            for (i, window) in self.windows.iter().enumerate() {
-                let mut tab = StyledText::new(format!(" {} ", window.name()));
+            for (i, uuid) in self.window_order.iter().enumerate() {
+                let mut tab = StyledText::new(format!(" {} ", self.windows[uuid].name()));
 
                 // set bg white for current
                 if i == self.current { tab = tab.with(StyleAttribute::BgColor(ThemeColor::Background)); }
@@ -130,61 +157,49 @@ impl Window for TabWindow {
     }
 
     fn input_bypass(&self) -> bool {
-        if let Some(window) = self.windows.get(self.current) {
+        if let Some(window) = self.windows.get(&self.window_order[self.current]) {
             window.input_bypass()
         } else {
             false
         }
     }
 
-    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
-        if let Some(window) = self.windows.get_mut(self.current) {
-            if window.input_bypass() {
-                window.input(key, modifiers);
-            } else {
-                match (key, modifiers) {
-                    (KeyCode::Tab, _) => {
-                        self.next_tab();
-                        self.requests.push(WindowRequest::Redraw);
-                    }
 
-                    (KeyCode::Char(';'), _) => {
-                        self.settings.show_tabs = !self.settings.show_tabs;
-                        self.requests.push(WindowRequest::Redraw);
-                    }
-
-                    (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
-                        if self.windows.len() == 1 {
-                            self.requests.push(WindowRequest::RemoveSelf);
-                            return;
-                        }
-
-                        let _ = self.windows.remove(self.current);
-                        self.next_tab();
-
-                        self.requests.push(WindowRequest::Redraw);
-                    }
-                    _ => window.input(key, modifiers),
+    fn event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Resize(dim) => {
+                for (_,window) in self.windows.iter_mut() {
+                    self.dim = dim;
+                    window.event(WindowEvent::Resize(self.dim));
+                }
+            },
+            WindowEvent::Input {key, modifiers} => {
+                self.input(key, modifiers);
+            }
+            event => {
+                if let Some(window) =  self.windows.get_mut(&self.window_order[self.current]) {
+                    window.event(event);
                 }
             }
         }
-    }
 
-    fn run_command(&mut self, cmd: String) {
-        if let Some(window) = self.windows.get_mut(self.current) {
-            window.run_command(cmd);
+        for (uuid, e) in self.receiver.poll() {
+            match e {
+                WindowRequest::AddWindow(window) => {
+                    if let Some(window) = window {
+                       self.add_window(window);
+                    }
+                }
+                WindowRequest::RemoveSelf => {
+                    self.remove_window(uuid);
+                    self.next_tab();
+                    // ERROR HERE
+                }
+                _ => self.poster.as_mut().unwrap().post(e)
+            }
         }
     }
-
-    fn on_focus(&mut self) {
-        if let Some(window) = self.windows.get_mut(self.current) {
-            window.on_focus();
-        }
-    }
-
-    fn on_resize(&mut self, dim: Plot) {
-        if let Some(window) = self.windows.get_mut(self.current) {
-            window.on_resize(dim);
-        }
+    fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {
+        self.poster = Some(poster);
     }
 }

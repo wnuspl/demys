@@ -2,10 +2,11 @@ use std::error::Error;
 use std::ops::AddAssign;
 use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyModifiers};
+use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::textedit::buffer::TextBuffer;
-use crate::window::{WindowRequest, Window};
+use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
     Normal,
@@ -34,7 +35,7 @@ impl Default for TextWindowSettings {
 
 pub struct TextWindow {
     tb: TextBuffer,
-    requests: Vec<WindowRequest>,
+    poster: Option<EventPoster<WindowRequest, Uuid>>,
     name: String,
     mode: Mode,
     settings: TextWindowSettings,
@@ -48,7 +49,7 @@ pub struct TextWindow {
 // Holds text buffers
 impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
-        TextWindow { tb, requests: Vec::new(), name: "[untitled]".into(), mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0}
+        TextWindow { tb, poster: None, name: "[untitled]".into(), mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
@@ -134,25 +135,30 @@ impl Window for TextWindow {
             Mode::Insert => true,
         }
     }
-    fn run_command(&mut self, cmd: String) {
-        if cmd == "w" {
-            self.tb.save();
-            self.requests.push(WindowRequest::Redraw);
-        }
-    }
-    fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
-        // global controls
-        match (key, modifiers) {
+    fn event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Input {key, modifiers} => {
+                // global controls
+                match (key, modifiers) {
+                    _ => ()
+                }
+
+                // edit mode controls
+                match self.mode {
+                    Mode::Insert => self.insert_mode_input(key, modifiers),
+                    Mode::Normal => self.normal_mode_input(key, modifiers),
+                }
+            }
+            WindowEvent::Command(cmd) => {
+                if cmd == "w" {
+                    self.tb.save();
+                }
+
+            }
             _ => ()
         }
 
-        // edit mode controls
-        match self.mode {
-            Mode::Insert => self.insert_mode_input(key, modifiers),
-            Mode::Normal => self.normal_mode_input(key, modifiers),
-       }
-
-        self.requests.push(WindowRequest::Redraw);
+        self.poster.as_mut().unwrap().post(WindowRequest::Redraw);
     }
 
     fn draw(&self, canvas: &mut Canvas) {
@@ -231,7 +237,7 @@ impl Window for TextWindow {
         );
     }
 
-    fn try_quit(&mut self) -> Result<(), Box<dyn Error>> {
+    fn try_quit(&self) -> Result<(), Box<dyn Error>> {
         if self.tb.saved {
             Ok(())
         } else {
@@ -239,7 +245,7 @@ impl Window for TextWindow {
         }
     }
 
-    fn requests(&mut self) -> &mut Vec<WindowRequest> {
-        &mut self.requests
+    fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {
+        self.poster = Some(poster)
     }
 }

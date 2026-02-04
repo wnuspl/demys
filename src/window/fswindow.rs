@@ -3,10 +3,11 @@ use std::fs::read_dir;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use crossterm::event::{KeyCode, KeyModifiers};
+use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::textedit::textwindow::TextWindow;
-use crate::window::{Window, WindowRequest};
+use crate::window::{TestWindow, Window, WindowEvent, WindowRequest};
 
 
 
@@ -80,7 +81,7 @@ impl DirectoryRep {
 
         self.is_open = true;
 
-        
+
         Ok(())
     }
     pub fn close(&mut self) -> std::io::Result<()> {
@@ -120,7 +121,7 @@ impl DirectoryRep {
     pub fn map_line_child(&mut self, interface_line: usize) -> Option<&mut DirectoryRep> {
         let mut r = interface_line;
         self._map_line_child(&mut r)
-    } 
+    }
 
 
 
@@ -170,7 +171,7 @@ impl ToString for DirectoryRep {
 pub struct FSWindow {
     line: usize,
     dir: DirectoryRep,
-    requests: Vec<WindowRequest>,
+    poster: Option<EventPoster<WindowRequest,Uuid>>
 }
 
 
@@ -178,40 +179,8 @@ pub struct FSWindow {
 // allows navigation of filesystem to open files
 impl FSWindow {
     pub fn new(dir: PathBuf) -> FSWindow {
-        FSWindow { line: 0, dir: dir.into(), requests: vec![WindowRequest::Redraw] }
+        FSWindow { line: 0, dir: dir.into(), poster: None }
     }
-}
-
-
-
-
-
-impl Window for FSWindow {
-    fn name(&self) -> String {
-        "Explorer".parse().unwrap()
-    }
-
-    fn requests(&mut self) -> &mut Vec<WindowRequest> {
-        &mut self.requests
-    }
-
-    fn draw(&self, canvas: &mut Canvas) {
-        let text = self.dir.to_string();
-
-        for (i, line) in text.split("\n").enumerate() {
-            let mut styled = StyledText::new(line.to_string());
-
-            if i == self.line {
-                styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
-            }
-
-            canvas.write_wrap(&styled);
-            canvas.to_next_line();
-        }
-    }
-
-
-
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
             KeyCode::Char('j') => {
@@ -233,7 +202,7 @@ impl Window for FSWindow {
                     } else {
                         // request creating new window
                         let text_window = TextWindow::from_file(item.dir.clone());
-                        self.requests.push(WindowRequest::AddWindow(
+                        self.poster.as_mut().unwrap().post(WindowRequest::AddWindow(
                             Some(Box::new(text_window))
                         ));
                     }
@@ -241,7 +210,39 @@ impl Window for FSWindow {
             }
             _ => ()
         }
+    }
+}
 
-        self.requests.push(WindowRequest::Redraw);
+
+
+
+
+impl Window for FSWindow {
+    fn name(&self) -> String {
+        "Explorer".parse().unwrap()
+    }
+    fn draw(&self, canvas: &mut Canvas) {
+        let text = self.dir.to_string();
+
+        for (i, line) in text.split("\n").enumerate() {
+            let mut styled = StyledText::new(line.to_string());
+
+            if i == self.line {
+                styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
+            }
+
+            canvas.write_wrap(&styled);
+            canvas.to_next_line();
+        }
+    }
+    fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {
+        self.poster = Some(poster);
+    }
+    fn event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Input {key, modifiers} => self.input(key, modifiers),
+            _ => ()
+        }
+        self.poster.as_mut().unwrap().post(WindowRequest::Redraw);
     }
 }

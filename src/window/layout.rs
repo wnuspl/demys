@@ -23,6 +23,7 @@ pub enum Grid {
     Single
 }
 
+#[derive(Copy,Clone)]
 pub struct WindowSpace {
     pub dim: Plot,
     pub start: Plot
