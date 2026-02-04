@@ -178,7 +178,7 @@ pub struct FSWindow {
 // allows navigation of filesystem to open files
 impl FSWindow {
     pub fn new(dir: PathBuf) -> FSWindow {
-        FSWindow { line: 0, dir: dir.into(), requests: Vec::new() }
+        FSWindow { line: 0, dir: dir.into(), requests: vec![WindowRequest::Redraw] }
     }
 }
 

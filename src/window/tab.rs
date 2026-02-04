@@ -153,15 +153,6 @@ impl Window for TabWindow {
                         self.requests.push(WindowRequest::Redraw);
                     }
 
-                    (KeyCode::Char('l'), KeyModifiers::CONTROL) => {
-                        if self.windows.len() == 1 { return; }
-
-                        let window = self.windows.remove(self.current);
-                        self.next_tab();
-
-                        self.requests.push(WindowRequest::AddWindow(Some(window)));
-                    }
-
                     (KeyCode::Char('x'), KeyModifiers::CONTROL) => {
                         if self.windows.len() == 1 {
                             self.requests.push(WindowRequest::RemoveSelf);

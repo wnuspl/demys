@@ -4,6 +4,7 @@ mod fswindow;
 mod window_manager;
 mod layout;
 pub mod tab;
+pub mod cmddisplay;
 
 pub use window::*;
 pub use fswindow::*;

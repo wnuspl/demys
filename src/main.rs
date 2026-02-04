@@ -7,6 +7,7 @@ use demys::plot::Plot;
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
+use demys::popup::Alert;
 use demys::textedit::buffer::TextBuffer;
 use demys::textedit::textwindow::TextWindow;
 use demys::window::{FSWindow, TestWindow, Window, WindowManager};
@@ -53,7 +54,7 @@ fn main() {
     let start_tabs: Vec<Box<dyn Window>>;
     if file_paths.len() == 0 {
        start_tabs = vec![
-           Box::new(FSWindow::new(current_dir)),
+           Box::new(FSWindow::new(current_dir.clone())),
            //Box::new(TestWindow::default()),
        ];
     } else {
@@ -74,8 +75,10 @@ fn main() {
 
 
     let mut window_manager = WindowManager::new();
+    window_manager.set_dir(current_dir);
 
     window_manager.add_window(Box::new(tab));
+
 
 
 
@@ -108,6 +111,7 @@ fn main() {
         }
 
         window_manager.update(&mut stdout);
+
 
         stdout.flush();
 

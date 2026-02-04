@@ -1,22 +1,28 @@
-use crate::window::{Window, WindowRequest};
+use crate::window::{FSWindow, TestWindow, Window, WindowRequest};
 use std::error::Error;
 use std::io::{Stdout, Write};
+use std::path::PathBuf;
 use crossterm::cursor::{Hide, MoveTo, Show};
 use crossterm::{queue, QueueableCommand};
 use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
 use crossterm::terminal::{Clear, ClearType};
 use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::plot::Plot;
+use crate::popup::{PopUp, PopUpDimensionOption, PopUpPosition, PopUpPositionOption};
 use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::style::ThemeColor;
+use crate::window::cmddisplay::CmdDisplay;
 use crate::window::tab::TabWindow;
 
 pub struct WindowManager {
-    pub layout: Layout,
-    pub windows: Vec<Box<dyn Window>>,
+    layout: Layout,
+    windows: Vec<Box<dyn Window>>,
     focused_window: usize,
-    command: Option<String>,
-    active: bool
+    current_dir: PathBuf,
+    pub cmd_display: Option<Box<CmdDisplay>>,
+    active: bool,
+
+    require_reset: bool
 }
 
 
@@ -31,9 +37,16 @@ impl WindowManager {
             layout,
             windows: Vec::new(),
             focused_window: 0,
-            command: None,
+            current_dir: PathBuf::new(),
+            cmd_display: None,
             active: true,
+            require_reset: false,
         }
+    }
+
+
+    pub fn set_dir(&mut self, dir: PathBuf) {
+        self.current_dir = dir;
     }
 
 
@@ -44,6 +57,8 @@ impl WindowManager {
         if self.layout.get_windows().len() < self.windows.len() {
             self.layout.grid.split(true);
         }
+
+        self.generate_layout();
 
         Ok(())
     }
@@ -58,6 +73,8 @@ impl WindowManager {
         }
 
         self.layout.remove_single(idx);
+
+        self.generate_layout();
         Ok(())
     }
 
@@ -88,10 +105,18 @@ impl WindowManager {
         match cmd.as_str() {
             "q" => self.quit(),
             "q!" => self.force_quit(),
-            _ => ()
-        }
-        if let Some(window) = self.windows.get_mut(self.focused_window) {
-            window.run_command(cmd);
+            "x" => {
+                self.add_window(Box::new({
+                    let mut tab = TabWindow::new();
+                    tab.add_window(Box::new(FSWindow::new(self.current_dir.clone())));
+                    tab
+                }));
+                self.focused_window = self.windows.len() - 1;
+                self.require_reset = true;
+            }
+            _ => if let Some(window) = self.windows.get_mut(self.focused_window) {
+                window.run_command(cmd);
+            }
         }
     }
 
@@ -99,14 +124,21 @@ impl WindowManager {
     // sends input to focused window
     pub fn input(&mut self, key: KeyCode, modifier: KeyModifiers) {
         // accumulate command
-        if let Some(text) = &mut self.command {
-            match key {
-                KeyCode::Char(ch) => *text += &ch.to_string(),
-                KeyCode::Backspace => if text.len() > 0 {
-                    text.remove(text.len()-1);
+        if let Some(cmd_display) = &mut self.cmd_display {
+            let cmd = &mut cmd_display.cmd;
+            match (key, modifier) {
+                (KeyCode::Esc, _) | (KeyCode::Char('['), KeyModifiers::CONTROL) => {
+                    self.cmd_display = None;
+                    // todo: figure out how to redraw underlying windows
                 }
-                KeyCode::Enter => {
-                    let cmd = self.command.take().unwrap();
+                (KeyCode::Char(ch), _) => {
+                    *cmd += &ch.to_string();
+                },
+                (KeyCode::Backspace, _) => if cmd.len() > 0 {
+                    cmd.remove(cmd.len()-1);
+                }
+                (KeyCode::Enter, _) => {
+                    let cmd = self.cmd_display.take().unwrap().cmd;
                     self.run_command(cmd);
                 }
                 _ => ()
@@ -115,10 +147,11 @@ impl WindowManager {
             return;
         }
 
+
         // bypass
         if let Some(window) = self.windows.get_mut(self.focused_window) {
             if window.input_bypass() {
-                self.windows[self.focused_window].input(key, modifier);
+                window.input(key, modifier);
                 return;
             }
         }
@@ -133,7 +166,7 @@ impl WindowManager {
                 self.windows[self.focused_window].on_focus();
             },
             (KeyCode::Char(':'), _) => {
-                self.command = Some(String::new());
+                self.cmd_display = Some(Box::new(CmdDisplay::default()));
             }
             _ => { self.windows[self.focused_window].input(key, modifier); }
         }
@@ -155,7 +188,7 @@ impl WindowManager {
         let mut removes = Vec::new();
 
         // sort into vecs
-        for (i, window) in self.windows.iter_mut().enumerate() {
+        for (i, mut window) in self.windows.iter_mut().enumerate() {
             for request in window.poll() {
                 match request {
                     WindowRequest::Redraw => redraws.push(i),
@@ -180,13 +213,13 @@ impl WindowManager {
                 let mut tab = TabWindow::new();
                 tab.add_window(window);
                 self.add_window(Box::new(tab));
-                self.reset_draw(stdout);
+                self.require_reset = true;
             }
         }
 
         for i in removes {
             if self.remove_window(i).is_ok() {
-                self.reset_draw(stdout);
+                self.require_reset = true;
             }
         }
 
@@ -195,7 +228,7 @@ impl WindowManager {
         for (i, loc) in cursors {
             if let Some(loc) = loc {
                 if let Some(WindowSpace { start, .. }) = self.layout.get_windows().get(i) {
-                    let absolute = loc+*start;
+                    let absolute = loc + *start;
                     queue!(stdout,
                         Show, MoveTo(absolute.col as u16, absolute.row as u16))?;
                 }
@@ -205,12 +238,19 @@ impl WindowManager {
             }
         }
 
+
+        // fix!!
+        if let Some(cmd_display) = &self.cmd_display {
+            self.draw_popup(stdout, cmd_display);
+        }
+
+        if self.require_reset {
+            self.reset_draw(stdout);
+            self.require_reset = false;
+        }
+
         Ok(())
     }
-
-
-
-
 
 
 
@@ -255,10 +295,47 @@ impl WindowManager {
         }
     }
 
+    fn to_term_pos(avail: usize, pos: PopUpPositionOption) -> usize {
+        match pos {
+            PopUpPositionOption::Centered(offset) => offset + (avail/2),
+            PopUpPositionOption::NegativeBound(offset) => offset,
+            PopUpPositionOption::PositiveBound(offset) => avail - offset,
+        }
+    }
+    fn to_term_dim(avail: usize, pos: PopUpDimensionOption) -> usize {
+        match pos {
+            PopUpDimensionOption::Fixed(n) => n,
+            PopUpDimensionOption::Percent(p) => ((avail as f32)*p) as usize
+        }
+    }
+
+    pub fn draw_popup<W: QueueableCommand + Write>(&self, stdout: &mut W, popup: &Box<CmdDisplay>) {
+        let pos = popup.position();
+        let dim = popup.dimension();
+
+        let total_dim = self.layout.get_dim();
+
+
+        let term_dim = Plot::new(
+            Self::to_term_dim(total_dim.row, dim.row),
+            Self::to_term_dim(total_dim.col, dim.col)
+        );
+
+        let term_pos = Plot::new(
+            Self::to_term_pos(total_dim.row, pos.row) - term_dim.row/2,
+            Self::to_term_pos(total_dim.col, pos.col) - term_dim.col/2,
+        );
+
+        let mut canvas = Canvas::new(term_dim);
+        popup.draw(&mut canvas);
+
+        canvas.queue_write(stdout, term_pos);
+    }
+
 
     // complete reset, used to redraw without being called from main
     pub fn reset_draw<W: QueueableCommand + Write>(&mut self, stdout: &mut W) {
-        self.clear(stdout);
+        // self.clear(stdout);
         self.generate_layout();
         self.draw(stdout);
     }
@@ -294,8 +371,6 @@ impl WindowManager {
             canvas.queue_write(stdout, *pos);
 
         }
-
-
     }
 
 

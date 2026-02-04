@@ -59,6 +59,9 @@ impl Layout {
         }
     }
 
+    pub fn get_dim(&self) -> &Plot {
+        &self.current_dim
+    }
     pub fn set_dim(&mut self, dim: Plot) {
         self.current_dim = dim;
     }
