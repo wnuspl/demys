@@ -15,7 +15,8 @@ pub struct WindowManager {
     pub layout: Layout,
     pub windows: Vec<Box<dyn Window>>,
     focused_window: usize,
-    command: Option<String>
+    command: Option<String>,
+    active: bool
 }
 
 
@@ -30,7 +31,8 @@ impl WindowManager {
             layout,
             windows: Vec::new(),
             focused_window: 0,
-            command: None
+            command: None,
+            active: true,
         }
     }
 
@@ -59,11 +61,40 @@ impl WindowManager {
         Ok(())
     }
 
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    /// Quits if all windows accept
+    pub fn quit(&mut self) {
+        let mut response = Vec::new();
+        for w in self.windows.iter_mut() {
+            let r = w.try_quit();
+            if r.is_err() { response.push(r); }
+        }
+
+        if response.len() == 0 { self.active = false; }
+        // other cleanup?
+    }
+
+    /// Quits no matter what
+    pub fn force_quit(&mut self) {
+        self.active = false;
+        // cleanup!!
+    }
+
     fn run_command(&mut self, cmd: String) {
+        // run personal commands
+        match cmd.as_str() {
+            "q" => self.quit(),
+            "q!" => self.force_quit(),
+            _ => ()
+        }
         if let Some(window) = self.windows.get_mut(self.focused_window) {
             window.run_command(cmd);
         }
     }
+
 
     // sends input to focused window
     pub fn input(&mut self, key: KeyCode, modifier: KeyModifiers) {

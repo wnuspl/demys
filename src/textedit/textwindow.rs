@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::ops::AddAssign;
 use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyModifiers};
@@ -228,6 +229,14 @@ impl Window for TextWindow {
             cursor,
             cursor+Plot::new(0,1)
         );
+    }
+
+    fn try_quit(&mut self) -> Result<(), Box<dyn Error>> {
+        if self.tb.saved {
+            Ok(())
+        } else {
+            Err("not saved".into())
+        }
     }
 
     fn requests(&mut self) -> &mut Vec<WindowRequest> {

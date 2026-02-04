@@ -1,3 +1,4 @@
+use std::error::Error;
 use crossterm::event::{KeyCode, KeyModifiers};
 use crate::plot::Plot;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
@@ -70,6 +71,14 @@ impl Window for TabWindow {
         self.requests.append(&mut local_requests);
 
         &mut self.requests
+    }
+
+    fn try_quit(&mut self) -> Result<(), Box<dyn Error>> {
+        for w in self.windows.iter_mut() {
+           let r = w.try_quit();
+            if r.is_err() { return r; }
+        }
+        Ok(())
     }
 
     fn draw(&self, canvas: &mut Canvas) {

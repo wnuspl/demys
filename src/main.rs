@@ -92,7 +92,6 @@ fn main() {
         match read().unwrap() {
             Event::Key(KeyEvent { code, kind, modifiers, .. }) => match kind {
                 KeyEventKind::Press | KeyEventKind::Repeat => {
-                    if let KeyCode::End = code { break; }
                     window_manager.input(code, modifiers);
                 },
                 _ => {}
@@ -111,6 +110,8 @@ fn main() {
         window_manager.update(&mut stdout);
 
         stdout.flush();
+
+        if !window_manager.is_active() { break; }
     }
 
 

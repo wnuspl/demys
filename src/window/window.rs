@@ -41,6 +41,11 @@ pub trait Window {
 
     fn run_command(&mut self, cmd: String) {}
 
+    /// Return Err if program should wait to quit
+    fn try_quit(&mut self) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
 
     /// Used by super windows, [do not override]
     fn poll(&mut self) -> Vec<WindowRequest> { std::mem::take(self.requests()) }
