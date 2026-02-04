@@ -6,14 +6,13 @@ last updated 2.2.2026 6:01pm
 ## priority
 - design tab joining
 - vim editing basics
-- : commands
+- more : commands
+- update usage docs
 
 ## secondary
 - fix buffer cursor with wrapped lines
-- hotkey for explorer
-- splitting windows
 - start edit system
-- cli to config windows
+- cli options
 
 ## abstract timeline
 v0.1.0-alpha
