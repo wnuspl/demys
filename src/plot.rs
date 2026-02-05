@@ -3,7 +3,7 @@ use std::fmt::Display;
 use std::ops::{Add, AddAssign, Sub};
 
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy, Default)]
 #[derive(Debug)]
 pub struct Plot {
     pub row: usize,

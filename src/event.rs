@@ -103,6 +103,10 @@ impl<T: Sized, U: UniqueNext> EventPoster<T,U> {
     pub fn post(&mut self, event: T) {
         self.poster.borrow_mut().receiver.receive((self.uuid.clone(), event));
     }
+    /// Post event to receiver's queue as different uuid
+    pub fn post_lie(&mut self, event: T, uuid: U) {
+        self.poster.borrow_mut().receiver.receive((uuid, event));
+    }
     /// Get copy of receiver
     fn receiver_raw(&self) -> EventReceiver<T,U> {
         self.poster.borrow_mut().receiver.clone()

@@ -1,3 +1,4 @@
+use demys::window::windowcontainer::{TestContainer, WindowContainer};
 use std::collections::VecDeque;
 use std::io::{Write, stdout};
 use std::env;
@@ -9,10 +10,12 @@ use demys::plot::Plot;
 
 use crossterm::{cursor, queue, terminal, QueueableCommand, event, execute};
 use crossterm::event::{read, Event, KeyCode, KeyEvent, KeyEventKind};
-use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode};
+use crossterm::event::KeyCode::Tab;
+use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen, enable_raw_mode, Clear, ClearType};
 use demys::event::{EventReceiver, Uuid};
+use demys::style::Canvas;
 use demys::textedit::buffer::TextBuffer;
-use demys::window::{TestWindow, Window, WindowManager, WindowRequest};
+use demys::window::{TestWindow, Window, WindowEvent, WindowManager, WindowRequest};
 use demys::window::fswindow::FSWindow;
 use demys::window::tab::TabWindow;
 
@@ -43,7 +46,7 @@ fn main() {
     let _ = crossterm::terminal::enable_raw_mode();
     let _ = execute!(
         stdout,
-        // EnterAlternateScreen,
+        EnterAlternateScreen,
         Hide
     );
     let _drop = TuiGuard;
@@ -55,13 +58,25 @@ fn main() {
 
 
     let mut window_manager = WindowManager::new();
-    window_manager.set_dir(current_dir.clone());
     window_manager.resize(terminal_dim);
+    let mut tab_manager = TabWindow::new();
+    window_manager.set_dir(current_dir.clone());
 
-    let mut tab = TabWindow::new();
-    tab.add_window(Box::new(FSWindow::new(current_dir)));
-    window_manager.add_window(Box::new(tab));
 
+    tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
+    window_manager.add_window(Box::new(tab_manager));
+
+    // let mut test = TestContainer::new();
+    // test.add_window(Box::new(TestWindow::default()));
+
+    let mut receiver: EventReceiver<WindowRequest, Uuid> = EventReceiver::new();
+
+
+    // generic here
+    let mut window_container: Box<dyn WindowContainer> = Box::new(window_manager);
+    let poster = receiver.new_poster();
+    let super_uuid = poster.get_uuid().clone();
+    window_container.init(poster);
 
 
     stdout.flush().unwrap();
@@ -70,7 +85,7 @@ fn main() {
     let mut events: VecDeque<DemysEvent> = VecDeque::new();
     loop {
         // put window request to queue
-        let r = window_manager.collect_events().into_iter().map(|e| {
+        let r = receiver.poll().into_iter().map(|e| {
             DemysEvent::Request(e.0, e.1)
         });
         events.extend(r);
@@ -92,7 +107,7 @@ fn main() {
                 match sys_event {
                     Event::Key(KeyEvent { kind, code, modifiers, .. }) => {
                         match kind {
-                            KeyEventKind::Press => window_manager.input(code, modifiers),
+                            KeyEventKind::Press => window_container.event(WindowEvent::Input { key:code, modifiers }),
                             _ => ()
                         }
                     },
@@ -100,8 +115,8 @@ fn main() {
                         terminal_dim= terminal::size().unwrap().into();
                         terminal_dim = terminal_dim.transpose();
 
-                        window_manager.resize(terminal_dim);
-                        window_manager.draw(&mut stdout);
+                        window_container.event(WindowEvent::Resize(terminal_dim));
+                        stdout.queue(Clear(ClearType::All)).unwrap();
                     },
                     _ => ()
                 }
@@ -110,29 +125,33 @@ fn main() {
 
             DemysEvent::Request(uuid, request) => {
                 match request {
-                    WindowRequest::Redraw => window_manager.draw_window_uuid(&mut stdout, uuid),
+                    WindowRequest::Redraw => {
+                        let mut canvas = Canvas::new(terminal_dim);
+                        window_container.draw(&mut canvas);
+                        canvas.queue_write(&mut stdout, Plot::new(0,0));
+                    },
                     WindowRequest::RemoveSelf => {
-                        let _ = window_manager.remove_window(uuid);
+                        break;
                     },
                     WindowRequest::AddWindow(window) => {
                         if let Some(window) = window {
                             let mut tab = TabWindow::new();
                             tab.add_window(window);
-                            let _ = window_manager.add_window(Box::new(tab));
+                            let _ = window_container.add_window(Box::new(tab));
                         }
                     }
                     WindowRequest::Command(cmd) => {
-                        window_manager.run_command(cmd);
+                        window_container.event(WindowEvent::Command(cmd));
                     }
                     _ => ()
                 }
             }
         }
 
+        window_container.tick();
 
         // end actions
         stdout.flush().unwrap();
-
-        if !window_manager.is_active() { break; }
     }
 }
+

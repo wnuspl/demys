@@ -8,11 +8,12 @@ use crossterm::{queue, QueueableCommand};
 use crossterm::style::{Attribute, Color, Print, ResetColor, SetAttribute, SetBackgroundColor, SetForegroundColor};
 use crossterm::terminal::ClearType;
 use crate::plot::Plot;
-use crate::style::{StyleAttribute, StyledText};
+use crate::style::{StyleAttribute, StyledText, ThemeColor};
 use crate::window::WindowRequest::Clear;
 
 /// Writeable region that can be written to terminal.
 /// Has an immutable size
+
 pub struct Canvas {
     dim: Plot,
     start_style: BTreeMap<usize, Vec<StyleAttribute>>,
@@ -20,7 +21,9 @@ pub struct Canvas {
     text: String,
     cursor: usize,
     eol: bool,
-    show_cursor: bool
+    show_cursor: bool,
+    children: Vec<(Canvas,Plot)>,
+    empty: bool
 }
 
 
@@ -36,7 +39,9 @@ impl Canvas {
             text,
             cursor: 0,
             eol: false,
-            show_cursor: false
+            show_cursor: false,
+            children: Vec::new(),
+            empty: false
         }
     }
 
@@ -97,6 +102,7 @@ impl Canvas {
         self.show_cursor = show;
     }
 
+    pub fn is_empty(&mut self, empty: bool) { self.empty = empty; }
 
 
     // WRITE
@@ -201,7 +207,7 @@ impl Canvas {
 
     /// Queues chunk of text body to stdout. Parameters start and end are relative to pos, not at pos
     /// (inclusive...exclusive)
-    fn queue_chunk<W: QueueableCommand + Write>(&mut self, start: usize, end: usize, stdout: &mut W, pos: Plot) {
+    fn queue_chunk<W: QueueableCommand + Write>(&self, start: usize, end: usize, stdout: &mut W, pos: Plot) {
         let start_line = start/self.dim.col;
         let end_line = end/self.dim.col;
 
@@ -272,10 +278,19 @@ impl Canvas {
 
 
     /// Write whole canvas to stdout at pos.
-    pub fn queue_write<W: QueueableCommand + Write>(&mut self, stdout: &mut W, pos: Plot) {
+    pub fn queue_write<W: QueueableCommand + Write>(&self, stdout: &mut W, pos: Plot) {
         // Marks breakpoints, where style needs to be changed
         // uses queue_chunk to write text in between break points
 
+        // clear attributes
+        // ts uglyy but lol
+
+        if self.empty {
+            for (canvas, local_pos) in self.children.iter() {
+                canvas.queue_write(stdout, *local_pos+pos)
+            }
+            return;
+        }
 
         // initialize attribute stack
         let mut attribute_stack: HashMap<usize, Vec<StyleAttribute>> = HashMap::new();
@@ -321,45 +336,17 @@ impl Canvas {
                 att.reset(stdout);
             }
         }
-    }
 
-
-    /// Copy the content of one canvas to self starting at pos.
-    /// Will not wrap content to start of next line if child canvas extends beyond parent bounds.
-    pub fn merge_canvas(&mut self, pos: Plot, other: &Canvas) {
-        // copy text content
-        let max_line_length = self.get_dim().col - pos.col;
-        for l in 0..other.get_dim().row {
-            // range is line in other canvas
-            let range = l*other.get_dim().col..(l+1)*other.get_dim().col;
-            // let text: String = other.text[range]
-            //     .chars().take(max_line_length).collect(); // take max_line_length
-            let text = &other.text[range];
-
-            self.write_at(&text.into(), pos + Plot::new(l,0));
-        }
-
-
-        // map style
-        for (start, end) in other.start_style.iter().zip(other.end_style.iter()) {
-            let att_list = start.1;
-            let start_pos = {
-                let (idx, _) = start;
-                let line = idx / other.get_dim().col;
-                let col = idx % other.get_dim().col;
-                Plot::new(line, col) + pos
-            };
-            let end_pos = {
-                let (idx, _) = end;
-                let line = idx / other.get_dim().col;
-                let col = idx % other.get_dim().col;
-                Plot::new(line, col) + pos
-            };
-            for att in att_list {
-                self.set_attribute(*att, start_pos, end_pos);
-            }
+        for (canvas, local_pos) in self.children.iter() {
+            canvas.queue_write(stdout, *local_pos+pos)
         }
     }
+
+
+    pub fn add_child(&mut self, canvas: Canvas, pos: Plot) {
+        self.children.push((canvas, pos));
+    }
+
 
     /// idk why this is here... replace all text with %
     pub fn block_content(&mut self) {

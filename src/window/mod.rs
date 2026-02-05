@@ -5,6 +5,7 @@ mod layout;
 pub mod fswindow;
 pub mod tab;
 mod command;
+pub mod windowcontainer;
 
 pub use window::*;
 pub use window_manager::*;

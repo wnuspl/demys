@@ -4,6 +4,7 @@ use std::ops::Range;
 use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
 use crate::style::{Canvas, ThemeColor, StyleAttribute, StyledText};
+use crate::window::WindowManager;
 // holds list of tabs, as well as file system if no tabs are open
 // basically just forwards inputs, display requests to correct tab
 
@@ -50,6 +51,9 @@ pub trait Window {
     fn try_quit(&self) -> Result<(), Box<dyn Error>> { Ok(()) }
 
 
+    /// Is called sometimes
+    fn tick(&mut self) {}
+
 
 
     /// Called by super window
@@ -61,10 +65,25 @@ pub trait Window {
 
 #[derive(Default)]
 pub struct TestWindow {
-    content: String
+    content: String,
+    command: String,
+    dim: Plot,
+    focused: bool
 }
 
 impl Window for TestWindow {
+    fn event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::Command(cmd) => self.command = cmd,
+            WindowEvent::Input { key, modifiers } => match key {
+                KeyCode::Char(ch) => self.content += &ch.to_string(),
+                _ => ()
+            }
+            WindowEvent::Resize(dim) => self.dim = dim,
+            WindowEvent::Focus => self.focused = true,
+            WindowEvent::Unfocus => self.focused = false
+        }
+    }
     fn draw(&self, canvas: &mut Canvas) {
         let size = StyledText::new(format!("{}", canvas.get_dim()))
             .with(StyleAttribute::Color(ThemeColor::Blue))
