@@ -1,4 +1,4 @@
-use demys::window::windowcontainer::{TestContainer, WindowContainer};
+use demys::window::windowcontainer::{WindowContainer};
 use std::collections::VecDeque;
 use std::io::{Write, stdout};
 use std::env;
@@ -46,7 +46,7 @@ fn main() {
     let _ = crossterm::terminal::enable_raw_mode();
     let _ = execute!(
         stdout,
-        // EnterAlternateScreen,
+        EnterAlternateScreen,
         Hide
     );
     let _drop = TuiGuard;
@@ -63,8 +63,11 @@ fn main() {
     window_manager.set_dir(current_dir.clone());
 
 
-    tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
-    window_manager.add_window(Box::new(tab_manager));
+    // tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
+    // window_manager.add_window(Box::new(tab_manager));
+
+
+    window_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
 
 
 

@@ -11,7 +11,7 @@ use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::window::{Window, WindowEvent, WindowManager, WindowRequest};
 use crate::window::command::Command;
 use crate::window::layout::{BorderSpace, Layout};
-use crate::window::windowcontainer::{TestContainer, WindowContainer};
+use crate::window::windowcontainer::{WindowContainer};
 
 pub struct TabSettings {
     show_tabs: bool,
@@ -219,9 +219,12 @@ impl WindowContainer for TabWindow {
 
         self.windows.remove(&uuid)
     }
-    fn add_popup(&mut self, mut popup: Box<dyn PopUp>) {
+    fn add_popup(&mut self, mut popup: Box<dyn PopUp>) -> Uuid {
         self.event_poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(popup)));
-        return;
+        Uuid(0)
+    }
+    fn remove_popup(&mut self, uuid: Uuid) -> Option<Box<dyn PopUp>> {
+        None
     }
 }
 

@@ -69,7 +69,6 @@ impl Layout {
     pub fn remove_single(&mut self, idx: usize) -> Result<(), Box<dyn Error>> {
         let mut remaining = idx;
         let ret = self.grid.remove_single(&mut remaining);
-        self.generate();
         ret
     }
     // set window_pos, border_pos
@@ -206,6 +205,7 @@ impl Grid {
 
             // Fixed width, variable height
             Self::Horizontal { body, scales: heights } => {
+                if body.len() == 0 { return (Vec::new(), Vec::new()) }
                 let available_height = dim.row-(body.len() as usize-1)*Self::BORDER_THICKNESS;
                 let mut vertical_offset = 0;
 
@@ -241,6 +241,7 @@ impl Grid {
 
             // Fixed height, variable width
             Self::Vertical { body, scales: widths } => {
+                if body.len() == 0 { return (Vec::new(), Vec::new()) }
                 let available_width = dim.col-(body.len() as usize-1)*Self::BORDER_THICKNESS;
                 let mut horizontal_offset = 0;
 

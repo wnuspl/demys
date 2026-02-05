@@ -4,7 +4,8 @@ last updated 2.4.2026 11:19pm
 ---
 
 ## priority
-- popups!
+- add separate popup and window removes
+- rewrite tab
 - design tab joining!
 - vim editing basics
 - update usage docs

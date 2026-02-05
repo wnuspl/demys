@@ -67,8 +67,8 @@ impl TextWindow {
         Box::new(Alert {
             content: StyledText::new(format!("Unsaved changes in {}.", name)),
             options: vec![
-                (StyledText::new("Save".into()), vec![WindowRequest::Command("w".into()), WindowRequest::RemoveSelf, WindowRequest::Command("txt/q!".into())]),
-                (StyledText::new("Discard".into()), vec![WindowRequest::RemoveSelf, WindowRequest::Command("txt/q!".into())])
+                (StyledText::new("Save".into()), vec![]),//WindowRequest::Command("w".into()), WindowRequest::RemoveSelf, WindowRequest::Command("txt/q!".into())]),
+                (StyledText::new("Discard".into()), vec![WindowRequest::RemoveSelf])//, WindowRequest::Command("txt/q!".into())])
             ],
             ..Default::default()
         })
@@ -170,9 +170,6 @@ impl Window for TextWindow {
                 }
                 if cmd == "txt/q!" {
                     self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
-                }
-                if cmd == "ss" {
-                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
                 }
             }
             WindowEvent::TryQuit => {

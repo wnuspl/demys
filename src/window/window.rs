@@ -37,7 +37,14 @@ pub enum WindowEvent {
     Focus,
     Unfocus,
     Command(String),
-    TryQuit
+    TryQuit,
+    None
+}
+
+impl Default for WindowEvent {
+    fn default() -> WindowEvent {
+        WindowEvent::None
+    }
 }
 
 
@@ -89,7 +96,8 @@ impl Window for TestWindow {
             WindowEvent::Resize(dim) => self.dim = dim,
             WindowEvent::Focus => self.focused = true,
             WindowEvent::Unfocus => self.focused = false,
-            WindowEvent::TryQuit => ()
+            WindowEvent::TryQuit => (),
+            WindowEvent::None => ()
         }
     }
     fn draw(&self, canvas: &mut Canvas) {
