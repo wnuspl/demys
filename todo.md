@@ -1,12 +1,12 @@
 # todo
-last updated 2.2.2026 6:01pm
+last updated 2.4.2026 11:19pm
 
 ---
 
 ## priority
-- design tab joining
+- popups!
+- design tab joining!
 - vim editing basics
-- more : commands
 - update usage docs
 
 ## secondary
