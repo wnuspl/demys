@@ -34,7 +34,7 @@ impl Window for WindowManager {
     }
     fn event(&mut self, mut event: WindowEvent) {
         if let WindowEvent::Input { key:KeyCode::Esc, .. }  = event {
-            self.container.post(WindowRequest::RemoveSelf);
+            self.container.post(WindowRequest::RemoveSelfWindow);
             return;
         }
 
@@ -121,7 +121,7 @@ impl Window for WindowManager {
                 }
             }
 
-            if let WindowRequest::RemoveSelf = e {
+            if let WindowRequest::RemoveSelfWindow = e {
                 self.layout.remove_single(0);
                 self.layout.generate();
             }

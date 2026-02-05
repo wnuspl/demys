@@ -112,12 +112,17 @@ impl OrderedWindowContainer {
                     }
                     processed.push(WindowRequest::AddPopup(None));
                 }
-                WindowRequest::RemoveSelf => {
-                    if self.remove_window(uuid.clone()).is_none() {
-                        self.remove_popup(uuid);
-                    }
+                WindowRequest::RemoveSelfWindow => {
+                    self.remove_window(uuid.clone());
+                    self.post(WindowRequest::Redraw);
 
-                    processed.push(WindowRequest::RemoveSelf);
+                    processed.push(WindowRequest::RemoveSelfWindow);
+                }
+                WindowRequest::RemoveSelfPopup => {
+                    self.remove_popup(uuid);
+                    self.post(WindowRequest::Redraw);
+
+                    processed.push(WindowRequest::RemoveSelfWindow);
                 }
                 WindowRequest::Command(command) => {
                     if let Some(window) = self.get_from_order_mut(self.get_current()) {
@@ -192,7 +197,7 @@ impl Window for OrderedWindowContainer {
 
         // if none
         if self.window_order.len() == 0 {
-            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
             return;
         }
     }

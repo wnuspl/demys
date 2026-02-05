@@ -132,7 +132,7 @@ fn main() {
                         window_container.draw(&mut canvas);
                         canvas.queue_write(&mut stdout, Plot::new(0,0));
                     },
-                    WindowRequest::RemoveSelf => {
+                    WindowRequest::RemoveSelfWindow => {
                         break;
                     },
                     WindowRequest::AddWindow(window) => {

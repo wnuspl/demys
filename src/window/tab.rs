@@ -177,7 +177,7 @@ impl Window for TabWindow {
                         self.add_window(window);
                     }
                 }
-                WindowRequest::RemoveSelf => {
+                WindowRequest::RemoveSelfWindow => {
                     self.remove_window(uuid.clone());
                 }
                 event => {
@@ -191,7 +191,7 @@ impl Window for TabWindow {
         }
 
         if self.window_order.len() == 0 {
-            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
         }
     }
 }

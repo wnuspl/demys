@@ -25,10 +25,10 @@ impl Window for Command {
                 (KeyCode::Backspace, _) => { self.cmd.remove(self.cmd.len()-1); },
                 (KeyCode::Enter, _) => {
                     self.poster.as_mut().unwrap().post(WindowRequest::Command(self.cmd.clone()));
-                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfPopup);
                 }
                 (KeyCode::Esc, _) => {
-                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfPopup);
                 }
                 _ => ()
             }
