@@ -18,7 +18,14 @@ pub enum WindowRequest {
     RemoveSelf,
     AddWindow(Option<Box<dyn Window>>),
     AddPopup(Option<Box<dyn PopUp>>),
-    Command(String)
+    Command(String),
+    None
+}
+
+impl Default for WindowRequest {
+    fn default() -> WindowRequest {
+        WindowRequest::None
+    }
 }
 
 pub enum WindowEvent {
@@ -29,7 +36,8 @@ pub enum WindowEvent {
     Resize(Plot),
     Focus,
     Unfocus,
-    Command(String)
+    Command(String),
+    TryQuit
 }
 
 
@@ -48,9 +56,6 @@ pub trait Window {
     /// Automatically called on
     /// - resize
     fn draw(&self, canvas: &mut Canvas) {}
-
-    /// Return Ok if ok to quit
-    fn try_quit(&self) -> Result<(), Box<dyn Error>> { Ok(()) }
 
 
     /// Is called sometimes
@@ -83,7 +88,8 @@ impl Window for TestWindow {
             }
             WindowEvent::Resize(dim) => self.dim = dim,
             WindowEvent::Focus => self.focused = true,
-            WindowEvent::Unfocus => self.focused = false
+            WindowEvent::Unfocus => self.focused = false,
+            WindowEvent::TryQuit => ()
         }
     }
     fn draw(&self, canvas: &mut Canvas) {

@@ -1,10 +1,13 @@
+use std::default;
 use std::error::Error;
 use std::ops::AddAssign;
 use std::path::PathBuf;
 use crossterm::event::{KeyCode, KeyModifiers};
 use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
+use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
+use crate::textedit::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::window::{WindowRequest, Window, WindowEvent};
 
@@ -39,6 +42,7 @@ pub struct TextWindow {
     name: String,
     mode: Mode,
     settings: TextWindowSettings,
+    unsaved_popup: Box<dyn PopUp>,
 
     scroll: usize
 }
@@ -49,7 +53,8 @@ pub struct TextWindow {
 // Holds text buffers
 impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
-        TextWindow { tb, poster: None, name: "[untitled]".into(), mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0}
+        let def_name = "[untitled]".to_string();
+        TextWindow { tb, poster: None, mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0, unsaved_popup: Self::unsaved_popup(&def_name), name: def_name}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
@@ -57,6 +62,16 @@ impl TextWindow {
         let mut tw = Self::new(tb);
         tw.name = name;
         tw
+    }
+    fn unsaved_popup(name: &str) -> Box<dyn PopUp> {
+        Box::new(Alert {
+            content: StyledText::new(format!("Unsaved changes in {}.", name)),
+            options: vec![
+                (StyledText::new("Save".into()), vec![WindowRequest::Command("w".into()), WindowRequest::RemoveSelf, WindowRequest::Command("txt/q!".into())]),
+                (StyledText::new("Discard".into()), vec![WindowRequest::RemoveSelf, WindowRequest::Command("txt/q!".into())])
+            ],
+            ..Default::default()
+        })
     }
 
     fn insert_mode_input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
@@ -153,8 +168,21 @@ impl Window for TextWindow {
                 if cmd == "w" {
                     self.tb.save();
                 }
-
+                if cmd == "txt/q!" {
+                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+                }
+                if cmd == "ss" {
+                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+                }
             }
+            WindowEvent::TryQuit => {
+                if self.tb.saved {
+                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+                } else {
+                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+                }
+            }
+
             _ => ()
         }
 
@@ -235,14 +263,6 @@ impl Window for TextWindow {
             cursor,
             cursor+Plot::new(0,1)
         );
-    }
-
-    fn try_quit(&self) -> Result<(), Box<dyn Error>> {
-        if self.tb.saved {
-            Ok(())
-        } else {
-            Err("not saved".into())
-        }
     }
 
     fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {

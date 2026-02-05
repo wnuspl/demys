@@ -6,6 +6,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use crossterm::QueueableCommand;
 use crate::event::{EventPoster, EventReceiver, Uuid};
 use crate::plot::Plot;
+use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::window::{Window, WindowEvent, WindowManager, WindowRequest};
 use crate::window::command::Command;
@@ -101,6 +102,12 @@ impl Window for TabWindow {
                 }
             }
 
+            WindowEvent::TryQuit => {
+                for window in self.windows.values_mut() {
+                    window.event(WindowEvent::TryQuit);
+                }
+            }
+
             _ => {
                 // forward other events
                 if let Some(window) = self.get_from_order_mut(self.current) {
@@ -127,7 +134,7 @@ impl Window for TabWindow {
         let mut child_canvas = Canvas::new(child_dim);
 
         // draw to child
-        if let Some(window) = self.windows.get(&self.window_order[self.current]) {
+        if let Some(window) = self.get_from_order(self.current) {
             window.draw(&mut child_canvas);
         }
 
@@ -170,12 +177,21 @@ impl Window for TabWindow {
                         self.add_window(window);
                     }
                 }
-                _ => ()
+                WindowRequest::RemoveSelf => {
+                    self.remove_window(uuid.clone());
+                }
+                event => {
+                    self.event_poster.as_mut().unwrap().post(event);
+                }
             }
         }
 
         for w in self.windows.values_mut() {
             w.tick();
+        }
+
+        if self.window_order.len() == 0 {
+            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
         }
     }
 }
@@ -202,6 +218,10 @@ impl WindowContainer for TabWindow {
         self.window_order.remove(order_idx);
 
         self.windows.remove(&uuid)
+    }
+    fn add_popup(&mut self, mut popup: Box<dyn PopUp>) {
+        self.event_poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(popup)));
+        return;
     }
 }
 

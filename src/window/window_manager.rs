@@ -40,6 +40,11 @@ impl Window for WindowManager {
         self.event_poster = Some(poster);
     }
     fn event(&mut self, event: WindowEvent) {
+        if let WindowEvent::Input { key:KeyCode::Esc, .. }  = event {
+            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+            return;
+        }
+
         // popup first!
         if let Some(popup) = self.popups.iter_mut().next() {
             popup.event(event);
@@ -52,8 +57,11 @@ impl Window for WindowManager {
 
         // forward events to current
         match event {
-            WindowEvent::Input { key:KeyCode::Esc, .. } => {
-                self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+            WindowEvent::Input { key:KeyCode::End, .. } => {
+                //self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+                for w in self.windows.values_mut() {
+                    w.event(WindowEvent::TryQuit);
+                }
                 return;
             }
             WindowEvent::Input { key:KeyCode::Char('n'), modifiers:KeyModifiers::CONTROL, .. } => {
@@ -125,11 +133,18 @@ impl Window for WindowManager {
         }
     }
     fn tick(&mut self) {
+
         for (uuid, event) in self.event_receiver.poll() {
             match event {
                 WindowRequest::AddWindow(window) => {
                     if let Some(window) = window {
                         self.add_window(window);
+                        self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
+                    }
+                }
+                WindowRequest::AddPopup(popup) => {
+                    if let Some(popup) = popup {
+                        self.add_popup(popup);
                         self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
                     }
                 }
@@ -149,6 +164,12 @@ impl Window for WindowManager {
         }
         for w in self.windows.values_mut() {
             w.tick();
+        }
+
+        // if none
+        if self.window_order.len() == 0 {
+            self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelf);
+            return;
         }
     }
 }
@@ -192,11 +213,6 @@ impl WindowContainer for WindowManager {
         }
     }
     fn add_popup(&mut self, mut popup: Box<dyn PopUp>) {
-        if !popup.local() {
-            self.event_poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(popup)));
-            return;
-        }
-
         let receiver = self.event_receiver.new_poster();
         let uuid = receiver.get_uuid().clone();
         popup.init(receiver);

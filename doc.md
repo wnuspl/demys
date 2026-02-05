@@ -4,7 +4,6 @@ This is the first file in the project to be written using demys! This means that
 
 # starting demys
 
-
 `demys`  
 
 Starting with no arguments will open an explorer tab.

@@ -241,6 +241,7 @@ impl Window for FSWindow {
     fn event(&mut self, event: WindowEvent) {
         match event {
             WindowEvent::Input {key, modifiers} => self.input(key, modifiers),
+            WindowEvent::TryQuit => self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelf),
             _ => ()
         }
         self.poster.as_mut().unwrap().post(WindowRequest::Redraw);

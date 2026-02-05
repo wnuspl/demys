@@ -2,9 +2,9 @@ use crate::plot::Plot;
 use crate::window::Window;
 
 pub enum PopUpPositionOption {
-    Centered(usize),
-    NegativeBound(usize),
-    PositiveBound(usize),
+    Centered(isize),
+    NegativeBound(isize),
+    PositiveBound(isize),
 }
 
 pub struct PopUpPosition {
@@ -43,11 +43,11 @@ pub trait PopUp: Window {
 
 
 fn to_term_pos(avail: usize, pos: PopUpPositionOption) -> usize {
-    match pos {
-        PopUpPositionOption::Centered(offset) => offset + (avail/2),
+    (match pos {
+        PopUpPositionOption::Centered(offset) => offset + (avail as isize/2),
         PopUpPositionOption::NegativeBound(offset) => offset,
-        PopUpPositionOption::PositiveBound(offset) => avail - offset,
-    }
+        PopUpPositionOption::PositiveBound(offset) => avail as isize - offset,
+    }) as usize
 }
 fn to_term_dim(avail: usize, pos: PopUpDimensionOption) -> usize {
     match pos {

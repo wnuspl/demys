@@ -46,7 +46,7 @@ fn main() {
     let _ = crossterm::terminal::enable_raw_mode();
     let _ = execute!(
         stdout,
-        EnterAlternateScreen,
+        // EnterAlternateScreen,
         Hide
     );
     let _drop = TuiGuard;
@@ -66,8 +66,7 @@ fn main() {
     tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
     window_manager.add_window(Box::new(tab_manager));
 
-    // let mut test = TestContainer::new();
-    // test.add_window(Box::new(TestWindow::default()));
+
 
     let mut receiver: EventReceiver<WindowRequest, Uuid> = EventReceiver::new();
 
@@ -154,4 +153,3 @@ fn main() {
         stdout.flush().unwrap();
     }
 }
-

@@ -33,8 +33,8 @@ impl From<ThemeColor> for crossterm::style::Color {
 }
 
 /// Wrapper for style options
-#[derive(Copy,Clone)]
 #[repr(usize)]
+#[derive(Copy,Clone)]
 pub enum StyleAttribute {
     Color(ThemeColor),
     Bold(bool),
@@ -94,6 +94,7 @@ impl StyleAttribute {
 
 
 /// Text paired with styling and writing options
+#[derive (Clone)]
 pub struct StyledText {
     text: String,
     attribute: Vec<StyleAttribute>,
