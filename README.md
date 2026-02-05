@@ -18,3 +18,6 @@ Lightweight command line editor. Based on Vim, but is (demys)tified.\
 - Hide/reveal labels/commands
 - Simple syntax highlighting
 - Color themes
+
+# progress update
+I just refactored everything for the 50th time. I do believe that this system will work now! Once I get popups working, the rest of developement should be smoother.
