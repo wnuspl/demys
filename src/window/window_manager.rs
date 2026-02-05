@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use crate::window::{TestWindow, Window, WindowEvent, WindowRequest};
 use std::error::Error;
 use std::hash::Hash;
@@ -11,13 +11,18 @@ use crossterm::terminal::{Clear, ClearType};
 use crate::event::{EventPoster, EventReceiver, Uuid};
 use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::plot::Plot;
+use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::style::ThemeColor;
+use crate::window::command::Command;
 use crate::window::windowcontainer::WindowContainer;
 
 pub struct WindowManager {
     windows: HashMap<Uuid, Box<dyn Window>>,
     window_order: Vec<Uuid>,
+
+    popups: VecDeque<Box<dyn PopUp>>,
+
     event_receiver: EventReceiver<WindowRequest, Uuid>,
     event_poster: Option<EventPoster<WindowRequest, Uuid>>,
     current: usize,
@@ -35,6 +40,15 @@ impl Window for WindowManager {
         self.event_poster = Some(poster);
     }
     fn event(&mut self, event: WindowEvent) {
+        // popup first!
+        if let Some(popup) = self.popups.iter_mut().next() {
+            popup.event(event);
+            self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
+            return;
+        }
+
+
+
 
         // forward events to current
         match event {
@@ -44,6 +58,11 @@ impl Window for WindowManager {
             }
             WindowEvent::Input { key:KeyCode::Char('n'), modifiers:KeyModifiers::CONTROL, .. } => {
                 self.current = (self.current+1) % self.window_order.len();
+            }
+            WindowEvent::Input { key:KeyCode::Char(':'), .. } => {
+                self.add_popup(Box::new(
+                    Command::default()
+                ));
             }
             WindowEvent::Resize(dim) => self.resize(dim),
 
@@ -93,6 +112,17 @@ impl Window for WindowManager {
 
             canvas.add_child(border_canvas, *s);
         }
+
+
+        // draw popups!
+        for popup in self.popups.iter() {
+            let dim = popup.term_dim(canvas.get_dim());
+            let pos = popup.term_pos(canvas.get_dim());
+
+            let mut popup_canvas = Canvas::new(dim);
+            popup.draw(&mut popup_canvas);
+            canvas.add_child(popup_canvas, pos);
+        }
     }
     fn tick(&mut self) {
         for (uuid, event) in self.event_receiver.poll() {
@@ -102,6 +132,17 @@ impl Window for WindowManager {
                         self.add_window(window);
                         self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
                     }
+                }
+                WindowRequest::RemoveSelf => {
+                    if self.remove_window(uuid.clone()).is_none() {
+                        self.remove_popup(uuid);
+                    }
+                }
+                WindowRequest::Command(command) => {
+                    if let Some(window) = self.get_from_order_mut(self.current) {
+                        window.event(WindowEvent::Command(command));
+                    }
+                    self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
                 }
                 _ => ()
             }
@@ -130,19 +171,40 @@ impl WindowContainer for WindowManager {
     }
     fn remove_window(&mut self, uuid: Uuid) -> Option<Box<dyn Window>> {
         // remove layout
-        let mut order_idx = 0;
+        let mut order_idx = None;
         for (i, u) in self.window_order.iter().enumerate() {
             if u == &uuid {
                 self.layout.remove_single(i);
-                order_idx = i;
+                order_idx = Some(i);
                 break;
             }
         }
-        self.window_order.remove(order_idx);
 
-        self.generate_layout();
+        if let Some(order_idx) = order_idx {
 
-        self.windows.remove(&uuid)
+            self.window_order.remove(order_idx);
+
+            self.generate_layout();
+
+            self.windows.remove(&uuid)
+        } else {
+            None
+        }
+    }
+    fn add_popup(&mut self, mut popup: Box<dyn PopUp>) {
+        if !popup.local() {
+            self.event_poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(popup)));
+            return;
+        }
+
+        let receiver = self.event_receiver.new_poster();
+        let uuid = receiver.get_uuid().clone();
+        popup.init(receiver);
+
+        self.popups.push_back(popup);
+    }
+    fn remove_popup(&mut self, uuid: Uuid) -> Option<Box<dyn PopUp>> {
+        self.popups.pop_front()
     }
 }
 
@@ -154,6 +216,9 @@ impl WindowManager {
         Self {
             windows: HashMap::new(),
             window_order: Vec::new(),
+
+            popups: VecDeque::new(),
+
             event_receiver: EventReceiver::new(),
             event_poster: None,
             layout,

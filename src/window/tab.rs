@@ -79,7 +79,7 @@ impl Window for TabWindow {
             WindowEvent::Input { key:KeyCode::Tab, .. } => {
                 self.next_tab();
             }
-            WindowEvent::Input { key:KeyCode::Char(';'), .. } => {
+            WindowEvent::Input { key:KeyCode::Char('\''), .. } => {
                 self.settings.show_tabs = !self.settings.show_tabs;
             }
             WindowEvent::Input { key:KeyCode::Right, modifiers:KeyModifiers::CONTROL, .. } => {

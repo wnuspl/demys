@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use crate::event::{EventPoster, EventReceiver, Uuid};
+use crate::popup::PopUp;
 use crate::style::Canvas;
 use crate::window::{Window, WindowEvent, WindowRequest};
 
 pub trait WindowContainer: Window {
     fn add_window(&mut self, window: Box<dyn Window>) -> Uuid;
     fn remove_window(&mut self, uuid: Uuid) -> Option<Box<dyn Window>>;
+    fn add_popup(&mut self, popup: Box<dyn PopUp>) {}
+    fn remove_popup(&mut self, uuid: Uuid) -> Option<Box<dyn PopUp>> { None }
 }
 
 

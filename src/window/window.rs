@@ -3,6 +3,7 @@ use std::error::Error;
 use std::ops::Range;
 use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
+use crate::popup::PopUp;
 use crate::style::{Canvas, ThemeColor, StyleAttribute, StyledText};
 use crate::window::WindowManager;
 // holds list of tabs, as well as file system if no tabs are open
@@ -16,6 +17,7 @@ pub enum WindowRequest {
     Cursor(Option<Plot>),
     RemoveSelf,
     AddWindow(Option<Box<dyn Window>>),
+    AddPopup(Option<Box<dyn PopUp>>),
     Command(String)
 }
 

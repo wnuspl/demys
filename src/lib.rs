@@ -4,6 +4,7 @@ pub mod plot;
 pub mod style;
 pub mod textedit;
 pub mod event;
+pub mod popup;
 
 use std::fmt::Display;
 use std::ops::{Add, Sub};
