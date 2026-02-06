@@ -7,7 +7,7 @@ use crate::event::{EventPoster, Uuid};
 use crate::plot::Plot;
 use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
-use crate::textedit::alert::Alert;
+use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::window::{WindowRequest, Window, WindowEvent};
 
@@ -31,7 +31,7 @@ impl Default for TextWindowSettings {
             normal_color: ThemeColor::Gray,
             line_number_color: ThemeColor::Green,
             dynamic_caret_color: true,
-            line_numbers: true
+            line_numbers: true,
         }
     }
 }
@@ -44,7 +44,8 @@ pub struct TextWindow {
     settings: TextWindowSettings,
     unsaved_popup: Box<dyn PopUp>,
 
-    scroll: usize
+    scroll: usize,
+    focused: bool
 }
 
 
@@ -54,7 +55,7 @@ pub struct TextWindow {
 impl TextWindow {
     pub fn new(tb: TextBuffer) -> TextWindow {
         let def_name = "[untitled]".to_string();
-        TextWindow { tb, poster: None, mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0, unsaved_popup: Self::unsaved_popup(&def_name), name: def_name}
+        TextWindow { tb, focused: false, poster: None, mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0, unsaved_popup: Self::unsaved_popup(&def_name), name: def_name}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
@@ -109,9 +110,6 @@ impl TextWindow {
                 KeyCode::Char('s') => {
                     self.tb.save();
                 }
-                KeyCode::Char('l') => {
-                    self.settings.line_numbers = !self.settings.line_numbers;
-                }
                 _ => ()
             }
 
@@ -146,6 +144,15 @@ impl TextWindow {
             _ => ()
         }
     }
+
+    fn try_quit(&mut self) {
+        if self.tb.saved {
+            self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
+        } else {
+            self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+        }
+    }
+
 }
 
 impl Window for TextWindow {
@@ -161,6 +168,9 @@ impl Window for TextWindow {
     }
     fn event(&mut self, event: WindowEvent) {
         match event {
+            WindowEvent::Focus => self.focused = true,
+            WindowEvent::Unfocus => self.focused = false,
+
             WindowEvent::Input {key, modifiers} => {
                 // global controls
                 match (key, modifiers) {
@@ -184,22 +194,23 @@ impl Window for TextWindow {
                 if cmd == "q!" {
                     self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
                 }
-                if cmd == "ss" {
-                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+                if cmd == "q" {
+                    self.try_quit();
+                }
+                if cmd == "tl" {
+                    self.settings.line_numbers = !self.settings.line_numbers;
                 }
             }
             WindowEvent::TryQuit => {
-                if self.tb.saved {
-                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
-                } else {
-                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
-                }
+                self.try_quit();
             }
 
             _ => ()
         }
 
-        self.poster.as_mut().unwrap().post(WindowRequest::Redraw);
+        if let Some(poster) = self.poster.as_mut() {
+            poster.post(WindowRequest::Redraw);
+        }
     }
 
     fn draw(&self, canvas: &mut Canvas) {
@@ -263,19 +274,22 @@ impl Window for TextWindow {
             canvas.to_next_line();
         }
 
-        // write cursor
-        let mut cursor = <Plot>::from(self.tb.cursor);
-        if self.settings.line_numbers {
-            cursor += Plot::new(0,3);
-        }
 
-        let _ = canvas.set_attribute(
-            StyleAttribute::BgColor(
-                if self.settings.dynamic_caret_color { mode_header_color } else { ThemeColor::Gray },
-            ),
-            cursor,
-            cursor+Plot::new(0,1)
-        );
+        // write cursor
+        if self.focused {
+            let mut cursor = <Plot>::from(self.tb.cursor);
+            if self.settings.line_numbers {
+                cursor += Plot::new(0, 3);
+            }
+
+            let _ = canvas.set_attribute(
+                StyleAttribute::BgColor(
+                    if self.settings.dynamic_caret_color { mode_header_color } else { ThemeColor::Gray },
+                ),
+                cursor,
+                cursor+Plot::new(0,1)
+            );
+        }
     }
 
     fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {

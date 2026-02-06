@@ -16,7 +16,8 @@ use demys::event::{EventReceiver, Uuid};
 use demys::style::Canvas;
 use demys::textedit::buffer::TextBuffer;
 use demys::window::{TestWindow, Window, WindowEvent, WindowManager, WindowRequest};
-use demys::window::fswindow::FSWindow;
+use demys::fswindow::FSWindow;
+use demys::textedit::textwindow::TextWindow;
 use demys::window::tab::TabWindow;
 
 struct TuiGuard;
@@ -51,31 +52,63 @@ fn main() {
     );
     let _drop = TuiGuard;
 
-    let current_dir = env::current_dir().expect("");
 
+    // terminal dimension
     let mut terminal_dim: Plot = terminal::size().unwrap().into();
     terminal_dim = terminal_dim.transpose();
 
 
+    let current_dir = env::current_dir().expect("");
+
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    for p in &args[1..] {
+        file_paths.push(p.into());
+    }
+
+
+    let mut start_tabs: Vec<Box<dyn Window>>;
+    if file_paths.len() == 0 {
+        // No args provided
+        start_tabs = vec![
+            Box::new(FSWindow::new(current_dir.clone())),
+        ];
+
+    } else {
+        let mut temp: Vec<Box<dyn Window>> = Vec::new();
+
+        // open all files
+        for p in file_paths {
+            temp.push(Box::new(TextWindow::from_file(p)));
+        }
+
+        start_tabs = temp;
+    }
+
+    // this weird... but we need to focus the first tab
+    start_tabs[0].event(WindowEvent::Focus);
+
+    let mut tab = TabWindow::new();
+    for t in start_tabs {
+        tab.add_window(t);
+    }
+
+
+
     let mut window_manager = WindowManager::new();
     window_manager.resize(terminal_dim);
-    let mut tab_manager = TabWindow::new();
     window_manager.set_dir(current_dir.clone());
 
 
-    tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
-    window_manager.add_window(Box::new(tab_manager));
+    window_manager.add_window(Box::new(tab));
 
-
-    // window_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
-    //
 
 
     let mut receiver: EventReceiver<WindowRequest, Uuid> = EventReceiver::new();
 
 
-    // generic here
     let mut window_container: Box<dyn WindowContainer> = Box::new(window_manager);
+
+    // configure receiver
     let poster = receiver.new_poster();
     let super_uuid = poster.get_uuid().clone();
     window_container.init(poster);
@@ -84,7 +117,9 @@ fn main() {
     stdout.flush().unwrap();
 
 
+    // global queue
     let mut events: VecDeque<DemysEvent> = VecDeque::new();
+
     loop {
         // put window request to queue
         let r = receiver.poll().into_iter().map(|e| {
@@ -104,6 +139,8 @@ fn main() {
         let e = events.pop_front();
         if e.is_none() { continue; }
 
+
+        // Match system events and surfaced requests
         match e.unwrap() {
             DemysEvent::Sys(sys_event) => {
                 match sys_event {
@@ -133,6 +170,7 @@ fn main() {
                         canvas.queue_write(&mut stdout, Plot::new(0,0));
                     },
                     WindowRequest::RemoveSelfWindow => {
+                        // end of program
                         break;
                     },
                     WindowRequest::AddWindow(window) => {
@@ -150,9 +188,9 @@ fn main() {
             }
         }
 
-        window_container.tick();
+        // trace from bottom up
+        window_container.collect_requests();
 
-        // end actions
         stdout.flush().unwrap();
     }
 }

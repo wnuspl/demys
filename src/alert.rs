@@ -104,7 +104,14 @@ impl Window for Alert {
     fn event(&mut self, event: WindowEvent) {
         match event {
             WindowEvent::Input { key, .. } => match key {
-                KeyCode::Char(_) => self.current = (self.current + 1) % self.options.len(),
+                KeyCode::Right | KeyCode::Char(_) => self.current = (self.current + 1) % self.options.len(),
+                KeyCode::Left => {
+                    if self.current == 0 {
+                        self.current = self.options.len() -1;
+                    } else {
+                        self.current -= 1;
+                    }
+                }
                 KeyCode::Enter => {
                     let chosen = std::mem::take(&mut self.options[self.current].1);
                     for req in chosen {

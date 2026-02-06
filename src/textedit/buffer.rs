@@ -22,7 +22,18 @@ pub struct TextBuffer {
 }
 impl From<PathBuf> for TextBuffer {
     fn from(path: PathBuf) -> Self {
+        // if file doesn't exist
+        if !path.exists() {
+            let mut blank = TextBuffer::new();
+            blank.path = Some(path);
+            blank.saved = false;
+
+            // thats all
+            return blank;
+        }
+
         let file = File::open(&path).unwrap();
+        // read lines into vec
         let reader = BufReader::new(file);
         let mut vec = Vec::new();
 

@@ -62,7 +62,14 @@ impl OrderedWindowContainer {
     pub fn set_current(&mut self, current: usize) { self.current = current; }
     pub fn cycle_current(&mut self) {
         if self.window_order.len() == 0 { return; }
+        // unfocus old
+        if let Some(old) = self.get_from_order_mut(self.current) {
+            old.event(WindowEvent::Unfocus);
+        }
         self.current = (self.current + 1) % self.window_order.len();
+        if let Some(cur) = self.get_from_order_mut(self.current) {
+            cur.event(WindowEvent::Focus);
+        }
     }
 
     pub fn get_from_order_mut(&mut self, i: usize) -> Option<&mut Box<dyn Window>> {
@@ -114,7 +121,7 @@ impl OrderedWindowContainer {
     }
 
     // returns processed events
-    pub fn process_requests(&mut self) -> Vec<WindowRequest> {
+    fn process_requests(&mut self) -> Vec<WindowRequest> {
         let mut processed = Vec::new();
         for (uuid, event) in self.poll() {
             match event {
@@ -146,10 +153,10 @@ impl OrderedWindowContainer {
                 }
                 WindowRequest::Command(command) => {
                     if let Some(window) = self.get_from_order_mut(self.get_current()) {
-                        window.event(WindowEvent::Command(command));
+                        window.event(WindowEvent::Command(command.clone()));
                     }
                     self.post(WindowRequest::Redraw);
-                    processed.push(WindowRequest::Command("".into()));
+                    processed.push(WindowRequest::Command(command));
                 }
                 WindowRequest::Redraw => {
                     self.post(WindowRequest::Redraw);
@@ -210,16 +217,17 @@ impl Window for OrderedWindowContainer {
         }
     }
     // fn name
-    fn tick(&mut self) {
+    fn collect_requests(&mut self) -> Vec<WindowRequest> {
         for window in self.windows.values_mut() {
-            window.tick();
+            window.collect_requests();
         }
 
         // if none
         if self.window_order.len() == 0 {
             self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
-            return;
         }
+
+        self.process_requests()
     }
 }
 

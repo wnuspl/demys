@@ -9,12 +9,14 @@ use crossterm::{queue, QueueableCommand};
 use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
 use crossterm::terminal::{Clear, ClearType};
 use crate::event::{EventPoster, EventReceiver, Uuid};
+use crate::fswindow::FSWindow;
 use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::plot::Plot;
 use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::style::ThemeColor;
 use crate::window::command::Command;
+use crate::window::tab::TabWindow;
 use crate::window::windowcontainer::{OrderedWindowContainer, WindowContainer};
 
 pub struct WindowManager {
@@ -47,7 +49,7 @@ impl Window for WindowManager {
             WindowEvent::Input { key:KeyCode::Esc, .. } => {
                 self.container.event(WindowEvent::TryQuit);
             }
-            WindowEvent::Input { key:KeyCode::Char('n'), modifiers:KeyModifiers::CONTROL, .. } => {
+            WindowEvent::Input { key:KeyCode::Char('l'), modifiers:KeyModifiers::CONTROL, .. } => {
                 self.container.cycle_current();
             }
             WindowEvent::Input { key:KeyCode::Char(':'), .. } => {
@@ -61,6 +63,7 @@ impl Window for WindowManager {
                     window.event(WindowEvent::TryQuit);
                 }
             }
+
 
             WindowEvent::None => (),
 
@@ -117,10 +120,9 @@ impl Window for WindowManager {
 
         self.container.draw(canvas);
     }
-    fn tick(&mut self) {
-        self.container.tick();
-
-        for e in self.container.process_requests() {
+    fn collect_requests(&mut self) -> Vec<WindowRequest> {
+        let requests = self.container.collect_requests();
+        for e in requests.iter() {
             if let WindowRequest::AddWindow(..) = e {
                 if self.container.window_count() > self.layout.get_windows().len() {
                     self.layout.grid.split(true);
@@ -132,7 +134,26 @@ impl Window for WindowManager {
                 self.layout.remove_single(0);
                 self.layout.generate();
             }
+
+            if let WindowRequest::Command(command) = e {
+                if command == "x" {
+                    let mut tab = TabWindow::new();
+                    tab.add_window(Box::new(FSWindow::new(self.current_dir.clone())));
+
+                    self.container.get_receiver().new_poster().post(
+                        WindowRequest::AddWindow(
+                            Some(Box::new(tab)
+                        )
+                    ));
+                    self.container.post(WindowRequest::Redraw);
+                }
+                if command == "qall" {
+                    self.event(WindowEvent::TryQuit);
+                }
+            }
         }
+
+        requests
     }
 
     fn input_bypass(&self) -> bool {

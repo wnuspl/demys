@@ -171,7 +171,8 @@ impl ToString for DirectoryRep {
 pub struct FSWindow {
     line: usize,
     dir: DirectoryRep,
-    poster: Option<EventPoster<WindowRequest,Uuid>>
+    poster: Option<EventPoster<WindowRequest,Uuid>>,
+    focused: bool,
 }
 
 
@@ -179,7 +180,7 @@ pub struct FSWindow {
 // allows navigation of filesystem to open files
 impl FSWindow {
     pub fn new(dir: PathBuf) -> FSWindow {
-        FSWindow { line: 0, dir: dir.into(), poster: None }
+        FSWindow { line: 0, dir: dir.into(), poster: None, focused: false }
     }
     fn input(&mut self, key: KeyCode, modifiers: KeyModifiers) {
         match key {
@@ -227,7 +228,7 @@ impl Window for FSWindow {
         for (i, line) in text.split("\n").enumerate() {
             let mut styled = StyledText::new(line.to_string());
 
-            if i == self.line {
+            if self.focused && i == self.line {
                 styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
             }
 
@@ -240,10 +241,16 @@ impl Window for FSWindow {
     }
     fn event(&mut self, event: WindowEvent) {
         match event {
+            WindowEvent::Focus => self.focused = true,
+            WindowEvent::Unfocus => self.focused = false,
+
             WindowEvent::Input {key, modifiers} => self.input(key, modifiers),
             WindowEvent::TryQuit => self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow),
             _ => ()
         }
-        self.poster.as_mut().unwrap().post(WindowRequest::Redraw);
+
+        if let Some(poster) = self.poster.as_mut() {
+            poster.post(WindowRequest::Redraw);
+        }
     }
 }

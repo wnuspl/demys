@@ -66,13 +66,15 @@ pub trait Window {
     fn draw(&self, canvas: &mut Canvas) {}
 
 
-    /// Is called sometimes
-    fn tick(&mut self) {}
+    /// Called from bottom up to read posted events
+    fn collect_requests(&mut self) -> Vec<WindowRequest> { Vec::new() }
 
 
 
     /// Called by super window
     fn event(&mut self, event: WindowEvent) {}
+    /// Gives access to event poster
+    /// Events posted are read by super window
     fn init(&mut self, poster: EventPoster<WindowRequest, Uuid>) {}
 }
 
