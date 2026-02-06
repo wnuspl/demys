@@ -1,11 +1,9 @@
 # todo
-last updated 2.4.2026 11:19pm
+last updated 2.5.2026 8:00pm
 
 ---
 
 ## priority
-- add separate popup and window removes
-- rewrite tab
 - design tab joining!
 - vim editing basics
 - update usage docs
