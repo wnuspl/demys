@@ -137,9 +137,8 @@ impl Window for TabWindow {
         self.container.draw(canvas);
     }
     fn tick(&mut self) {
-        self.container.process_requests();
-
         self.container.tick();
+        self.container.process_requests();
     }
     fn input_bypass(&self) -> bool {
         self.container.input_bypass()

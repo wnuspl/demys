@@ -118,8 +118,9 @@ impl Window for WindowManager {
         self.container.draw(canvas);
     }
     fn tick(&mut self) {
-        for e in self.container.process_requests() {
+        self.container.tick();
 
+        for e in self.container.process_requests() {
             if let WindowRequest::AddWindow(..) = e {
                 if self.container.window_count() > self.layout.get_windows().len() {
                     self.layout.grid.split(true);
@@ -132,8 +133,6 @@ impl Window for WindowManager {
                 self.layout.generate();
             }
         }
-
-        self.container.tick();
     }
 
     fn input_bypass(&self) -> bool {
