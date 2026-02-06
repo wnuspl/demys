@@ -4,9 +4,10 @@ last updated 2.5.2026 8:00pm
 ---
 
 ## priority
+- popup input/draw priority
+- local vs global adds
 - design tab joining!
 - vim editing basics
-- update usage docs
 
 ## secondary
 - fix buffer cursor with wrapped lines
