@@ -63,12 +63,12 @@ fn main() {
     window_manager.set_dir(current_dir.clone());
 
 
-    // tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
-    // window_manager.add_window(Box::new(tab_manager));
+    tab_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
+    window_manager.add_window(Box::new(tab_manager));
 
 
-    window_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
-
+    // window_manager.add_window(Box::new(FSWindow::new(current_dir.clone())));
+    //
 
 
     let mut receiver: EventReceiver<WindowRequest, Uuid> = EventReceiver::new();

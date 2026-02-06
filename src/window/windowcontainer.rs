@@ -60,7 +60,10 @@ impl OrderedWindowContainer {
 
     pub fn get_current(&self) -> usize { self.current }
     pub fn set_current(&mut self, current: usize) { self.current = current; }
-    pub fn cycle_current(&mut self) { self.current = (self.current + 1) % self.window_order.len(); }
+    pub fn cycle_current(&mut self) {
+        if self.window_order.len() == 0 { return; }
+        self.current = (self.current + 1) % self.window_order.len();
+    }
 
     pub fn get_from_order_mut(&mut self, i: usize) -> Option<&mut Box<dyn Window>> {
         if let Some(uuid) = self.window_order.get_mut(i) {
@@ -80,19 +83,36 @@ impl OrderedWindowContainer {
     pub fn window_count(&self) -> usize {
         self.window_order.len()
     }
+    pub fn window_order(&self) -> &Vec<Uuid> {
+        &self.window_order
+    }
 
     pub fn poll(&mut self) -> Vec<(Uuid, WindowRequest)> {
     self.seen.append(&mut self.event_receiver.poll());
         std::mem::take(&mut self.seen)
     }
 
-    pub fn popup_event(&mut self, event: &mut WindowEvent) {
+    /// Checks for popups and input bypasses, replacing with None event to avoid double counts
+    pub fn distribute_events(&mut self, event: &mut WindowEvent) {
         if let Some(popup) = self.popups.values_mut().next() {
-            popup.event(std::mem::take(event));
+            popup.event(std::mem::replace(event, WindowEvent::None));
             self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
             return;
         }
+
+        if let Some(window) = self.get_from_order_mut(self.current) {
+            if window.input_bypass() {
+                match event {
+                    // only input events go through
+                    event @ WindowEvent::Input {..} => {
+                        window.event(std::mem::replace(event, WindowEvent::None));
+                    }
+                    _ => ()
+                }
+            }
+        }
     }
+
     // returns processed events
     pub fn process_requests(&mut self) -> Vec<WindowRequest> {
         let mut processed = Vec::new();
@@ -122,7 +142,7 @@ impl OrderedWindowContainer {
                     self.remove_popup(uuid);
                     self.post(WindowRequest::Redraw);
 
-                    processed.push(WindowRequest::RemoveSelfWindow);
+                    processed.push(WindowRequest::RemoveSelfPopup);
                 }
                 WindowRequest::Command(command) => {
                     if let Some(window) = self.get_from_order_mut(self.get_current()) {
@@ -217,8 +237,12 @@ impl WindowContainer for OrderedWindowContainer {
         uuid
     }
     fn remove_window(&mut self, uuid: Uuid) -> Option<Box<dyn Window>> {
+
         // remove uuid from order
         self.window_order.retain(|u| u != &uuid);
+
+        self.cycle_current();
+
 
         // remove from map
         self.windows.remove(&uuid)

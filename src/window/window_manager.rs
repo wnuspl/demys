@@ -33,18 +33,18 @@ impl Window for WindowManager {
         self.container.set_poster(poster);
     }
     fn event(&mut self, mut event: WindowEvent) {
-        if let WindowEvent::Input { key:KeyCode::Esc, .. }  = event {
+        if let WindowEvent::Input { key:KeyCode::End, modifiers:KeyModifiers::CONTROL }  = event {
             self.container.post(WindowRequest::RemoveSelfWindow);
             return;
         }
 
-        self.container.popup_event(&mut event);
+        self.container.distribute_events(&mut event);
         // event may be none now
 
 
         // forward events to current
         match event {
-            WindowEvent::Input { key:KeyCode::End, .. } => {
+            WindowEvent::Input { key:KeyCode::Esc, .. } => {
                 self.container.event(WindowEvent::TryQuit);
             }
             WindowEvent::Input { key:KeyCode::Char('n'), modifiers:KeyModifiers::CONTROL, .. } => {
@@ -54,6 +54,12 @@ impl Window for WindowManager {
                 self.add_popup(Box::new(
                     Command::default()
                 ));
+                self.container.post(WindowRequest::Redraw);
+            }
+            WindowEvent::Input { key:KeyCode::Char('x'), modifiers:KeyModifiers::CONTROL, .. } => {
+                if let Some(window) = self.container.get_from_order_mut(self.container.get_current()) {
+                    window.event(WindowEvent::TryQuit);
+                }
             }
 
             WindowEvent::None => (),
@@ -128,6 +134,10 @@ impl Window for WindowManager {
         }
 
         self.container.tick();
+    }
+
+    fn input_bypass(&self) -> bool {
+        self.container.input_bypass()
     }
 }
 

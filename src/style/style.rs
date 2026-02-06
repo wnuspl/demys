@@ -8,6 +8,7 @@ use crossterm::style::{Attribute, Color, SetAttribute, SetBackgroundColor, SetFo
 pub enum ThemeColor {
     Primary,
     Blue,
+    DarkBlue,
     Magenta,
     Yellow,
     Green,
@@ -21,12 +22,13 @@ impl From<ThemeColor> for crossterm::style::Color {
         match color {
             ThemeColor::Primary => crossterm::style::Color::Black,
             ThemeColor::Blue => crossterm::style::Color::Blue,
+            ThemeColor::DarkBlue => crossterm::style::Color::DarkBlue,
             ThemeColor::Magenta => crossterm::style::Color::Magenta,
             ThemeColor::Yellow => crossterm::style::Color::Yellow,
             ThemeColor::Green => crossterm::style::Color::Green,
             ThemeColor::Gray => crossterm::style::Color::Grey,
             ThemeColor::Black => crossterm::style::Color::Black,
-            ThemeColor::White => crossterm::style::Color::White,
+            ThemeColor::White => crossterm::style::Color::AnsiValue(7),
             ThemeColor::Background => crossterm::style::Color::Reset
         }
     }

@@ -64,11 +64,20 @@ impl TextWindow {
         tw
     }
     fn unsaved_popup(name: &str) -> Box<dyn PopUp> {
+        let save = StyledText::new("Save".into())
+            .with(StyleAttribute::Bold(true));
+        let discard = StyledText::new("Discard".into())
+            .with(StyleAttribute::Bold(true));
         Box::new(Alert {
             content: StyledText::new(format!("Unsaved changes in {}.", name)),
             options: vec![
-                (StyledText::new("Save".into()), vec![WindowRequest::Command("w".into()), WindowRequest::RemoveSelfPopup, WindowRequest::Command("txt/q!".into())]),
-                (StyledText::new("Discard".into()), vec![WindowRequest::RemoveSelfPopup, WindowRequest::Command("txt/q!".into())])
+                (save, vec![
+                    WindowRequest::Command("wq".into()),
+                ]),
+                (discard, vec![
+                    WindowRequest::Command("q!".into()),
+                ]),
+                (StyledText::new("Go Back".into()), vec![])
             ],
             ..Default::default()
         })
@@ -168,8 +177,15 @@ impl Window for TextWindow {
                 if cmd == "w" {
                     self.tb.save();
                 }
-                if cmd == "txt/q!" {
+                if cmd == "wq" {
+                    self.tb.save();
                     self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
+                }
+                if cmd == "q!" {
+                    self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
+                }
+                if cmd == "ss" {
+                    self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
                 }
             }
             WindowEvent::TryQuit => {

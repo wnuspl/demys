@@ -19,7 +19,7 @@ impl Default for AlertSettings {
         Self {
             margin: 2,
             border: true,
-            background: ThemeColor::White,
+            background: ThemeColor::Background,
         }
     }
 }
@@ -91,7 +91,7 @@ impl Window for Alert {
         for (i, (option, _)) in self.options.iter().enumerate() {
             if i == self.current {
                 let selected_option = option.clone()
-                    .with(StyleAttribute::BgColor(ThemeColor::Green));
+                    .with(StyleAttribute::BgColor(ThemeColor::White));
                canvas.write(&selected_option);
             } else {
                 canvas.write(&option);
@@ -110,6 +110,7 @@ impl Window for Alert {
                     for req in chosen {
                         self.event_poster.as_mut().unwrap().post(req);
                     }
+                    self.event_poster.as_mut().unwrap().post(WindowRequest::RemoveSelfPopup);
                 }
                 _ => ()
             },

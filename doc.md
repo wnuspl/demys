@@ -26,7 +26,7 @@ demys supports only basic text editting.
 - Arrow keys
 - Backspace
 - Enter
-- Save with `F12`
+- Save with Ctrl+S or "cmd w"
 
 # explorer tab
 
