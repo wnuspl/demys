@@ -254,12 +254,14 @@ impl Window for TextWindow {
 
         // write text and line number
         canvas.move_to(Plot::new(0,0));
-        let text = format!("{}",self.tb);
+        let text = self.tb.wrap_display(canvas.get_dim().col - 3);
 
         // which lines are shown
         let range = (self.scroll, canvas.last_row());
 
-        let lines = text.split('\n').enumerate();
+        let mut real_n = 0;
+
+        let lines = text.iter().enumerate();
         for (n, line) in lines.skip(range.0).take(range.1) {
             // line number
             if self.settings.line_numbers {
@@ -269,15 +271,21 @@ impl Window for TextWindow {
             }
 
             // text
-            let content = StyledText::new(line.to_string());
-            canvas.write(&content);
-            canvas.to_next_line();
+            for sub_line in line.iter() {
+                let content = StyledText::new(sub_line.clone());
+                canvas.write(&content);
+                canvas.to_next_line();
+                real_n += 1;
+            }
+
+
+            if real_n > canvas.get_dim().row { break; }
         }
 
 
         // write cursor
         if self.focused {
-            let mut cursor = <Plot>::from(self.tb.cursor);
+            let mut cursor = self.tb.wrap_cursor(canvas.get_dim().col);
             if self.settings.line_numbers {
                 cursor += Plot::new(0, 3);
             }

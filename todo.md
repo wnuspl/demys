@@ -5,6 +5,7 @@ last updated 2.5.2026 8:00pm
 
 ## priority
 - popup input/draw priority
+- splitting with one window
 - local vs global adds
 - design tab joining!
 - vim editing basics

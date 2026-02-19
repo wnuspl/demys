@@ -101,10 +101,15 @@ impl OrderedWindowContainer {
 
     /// Checks for popups and input bypasses, replacing with None event to avoid double counts
     pub fn distribute_events(&mut self, event: &mut WindowEvent) {
-        if let Some(popup) = self.popups.values_mut().next() {
-            popup.event(std::mem::replace(event, WindowEvent::None));
-            self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
-            return;
+
+        // to last popup
+        let last_uuid = self.popup_order.last();
+        if let Some(last_uuid) = last_uuid {
+            if let Some(popup) = self.popups.get_mut(last_uuid) {
+                popup.event(std::mem::replace(event, WindowEvent::None));
+                self.event_poster.as_mut().unwrap().post(WindowRequest::Redraw);
+                return;
+            }
         }
 
         if let Some(window) = self.get_from_order_mut(self.current) {

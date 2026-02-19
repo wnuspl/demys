@@ -5,6 +5,7 @@ use std::fmt::{Display, Formatter};
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use crate::plot::Plot;
 
 // Contains text, cursor position, and edit history
 // Lowest level of interaction with text, provides functionality for creating/undoing edits
@@ -238,6 +239,60 @@ impl TextBuffer {
 
 
 
+impl TextBuffer {
+    pub fn wrap_display(&self, max_len: usize) -> Vec<Vec<String>> {
+        let mut out = Vec::new();
+        for line in self.lines.iter() {
+            let mut line = line.clone();
+
+            let mut this = Vec::new();
+            while line.len() > max_len {
+                let pointer = max_len;
+                let partial = line.drain(..pointer);
+                let partial_string = partial.collect();
+
+                this.push(partial_string);
+            }
+
+            this.push(line);
+
+            out.push(this);
+        }
+
+        out
+    }
+
+    pub fn wrap_cursor(&self, max_len: usize) -> Plot {
+        let plot_cursor = Plot::from(self.cursor);
+        let mut bonus_lines_used = 0;
+        for line in self.lines.iter().take(self.cursor.0) {
+            bonus_lines_used += line.len() / max_len;
+        }
+
+        plot_cursor + Plot::new(bonus_lines_used, 0)
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use crate::textedit::buffer::TextBuffer;
+
+    #[test]
+    fn display() {
+        let mut buffer = TextBuffer::new();
+        buffer.insert("this is line one\nand now we are on line twoooooooooo\n\nlast line");
+
+        for line in buffer.wrap_display(10) {
+            println!("NEW LINE");
+            for sublin in line {
+                println!("{}", sublin);
+            }
+        }
+
+        assert_eq!(1,2);
+    }
+}
 
 
 
