@@ -269,6 +269,7 @@ impl TextBuffer {
             bonus_lines_used += line.len() / max_len;
         }
 
+
         plot_cursor + Plot::new(bonus_lines_used, 0)
     }
 }

@@ -275,6 +275,8 @@ impl Window for TextWindow {
                 let content = StyledText::new(sub_line.clone());
                 canvas.write(&content);
                 canvas.to_next_line();
+
+
                 real_n += 1;
             }
 
