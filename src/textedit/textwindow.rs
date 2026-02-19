@@ -122,6 +122,9 @@ impl TextWindow {
             (KeyCode::Char('k'), _) => { self.tb.cursor_move_by(Some(-1),None); }
             (KeyCode::Char('l'), _) => { self.tb.cursor_move_by(None,Some(1)); }
 
+            (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
+            (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }
+
             // insert mode transitions
             (KeyCode::Char('i'), _) => self.mode = Mode::Insert,
             (KeyCode::Char('I'), _) => {

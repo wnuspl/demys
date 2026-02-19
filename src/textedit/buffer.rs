@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::collections::HashSet;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use std::fs::File;
@@ -149,6 +150,31 @@ impl TextBuffer {
     pub fn get_cursor_col(&self) -> usize { self.cursor.1 }
 
 
+    pub fn next_word_space(&mut self) {
+        let separators: HashSet<char> = [' '].into_iter().collect();
+        self._next_word(&separators);
+    }
+    pub fn seek_word(&mut self) {
+        let separators: HashSet<char> = [' ', '.','_','-','(',')','{','}'].into_iter().collect();
+        self._next_word(&separators);
+    }
+    fn _next_word(&mut self, separators: &HashSet<char>) {
+        let future = self.lines[self.cursor.0].chars().skip(self.cursor.1);
+        let mut found_space = false;
+        for (dc, ch) in future.enumerate() {
+            if (separators.contains(&ch)) {
+                found_space = true;
+            } else if found_space {
+                self.cursor.1 += dc;
+                return;
+            }
+        }
+
+        self.cursor_move_by(Some(1), None);
+        self.cursor_start_of_line();
+    }
+
+
 
 
 
@@ -293,6 +319,7 @@ mod test {
 
         assert_eq!(1,2);
     }
+
 }
 
 
