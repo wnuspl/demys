@@ -1,19 +1,25 @@
 # todo
-last updated 2.5.2026 8:00pm
+last updated 2.21.2026 3:25pm
 
 ---
 
-## priority
-- popup input/draw priority
-- splitting with one window
-- local vs global adds
-- design tab joining!
-- vim editing basics
+## rewrites
+- layout system (reference grid-plan.txt)
+- buffer (become gap buffer)
 
 ## secondary
-- fix buffer cursor with wrapped lines
 - start edit system
 - cli options
+
+## small tweaks
+- 3+ lines wrapping
+- filling total width/height with separate windows
+- local vs global adds
+
+# to figure out
+- scrolling
+- async highlighting
+
 
 ## abstract timeline
 v0.1.0-alpha
