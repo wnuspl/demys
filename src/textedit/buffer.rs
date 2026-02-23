@@ -266,9 +266,9 @@ impl TextBuffer {
 
 
 impl TextBuffer {
-    pub fn wrap_display(&self, max_len: usize) -> Vec<Vec<String>> {
+    pub fn wrap_display(&self, scroll: usize, max_len: usize) -> Vec<Vec<String>> {
         let mut out = Vec::new();
-        for line in self.lines.iter() {
+        for line in self.lines.iter().skip(scroll) {
             let mut line = line.clone();
 
             let mut this = Vec::new();
@@ -310,7 +310,7 @@ mod test {
         let mut buffer = TextBuffer::new();
         buffer.insert("this is line one\nand now we are on line twoooooooooo\n\nlast line");
 
-        for line in buffer.wrap_display(10) {
+        for line in buffer.wrap_display(0, 10) {
             println!("NEW LINE");
             for sublin in line {
                 println!("{}", sublin);

@@ -226,6 +226,39 @@ impl Window for TextWindow {
     }
 
     fn draw(&self, canvas: &mut Canvas) {
+        // write text and line number
+        canvas.move_to(Plot::new(0,0));
+        let text = self.tb.wrap_display(self.scroll, canvas.get_dim().col - 3);
+
+        // which lines are shown
+
+        let mut real_n = 0;
+
+        let lines = text.iter().enumerate();
+        for (n, line) in lines {
+            // line number
+            if self.settings.line_numbers {
+                let line_number = StyledText::new(format!("{:<3}", self.scroll+n+1))
+                    .with(StyleAttribute::Color(self.settings.line_number_color));
+                canvas.write(&line_number);
+            }
+
+            // text
+            for sub_line in line.iter() {
+                let content = StyledText::new(sub_line.clone());
+                canvas.write(&content);
+                canvas.to_next_line();
+
+
+                real_n += 1;
+            }
+
+
+            if real_n > canvas.get_dim().row-2 { break; }
+        }
+
+
+
         // get header content
         let mode_text;
         let mode_header_color;
@@ -264,37 +297,6 @@ impl Window for TextWindow {
 
 
 
-        // write text and line number
-        canvas.move_to(Plot::new(0,0));
-        let text = self.tb.wrap_display(canvas.get_dim().col - 3);
-
-        // which lines are shown
-        let range = (self.scroll, canvas.last_row());
-
-        let mut real_n = 0;
-
-        let lines = text.iter().enumerate();
-        for (n, line) in lines.skip(range.0).take(range.1) {
-            // line number
-            if self.settings.line_numbers {
-                let line_number = StyledText::new(format!("{:<3}", n+1))
-                    .with(StyleAttribute::Color(self.settings.line_number_color));
-                canvas.write(&line_number);
-            }
-
-            // text
-            for sub_line in line.iter() {
-                let content = StyledText::new(sub_line.clone());
-                canvas.write(&content);
-                canvas.to_next_line();
-
-
-                real_n += 1;
-            }
-
-
-            if real_n > canvas.get_dim().row { break; }
-        }
 
 
         // write cursor

@@ -64,6 +64,16 @@ impl Grid {
         }
     }
 
+    pub fn remove_minor(&mut self, index: usize) -> Result<(), Box<dyn Error>> {
+        if let Some(minor) = self.minor_scales.get_mut(index) {
+            minor.pop();
+            *minor = to_distribution_vec(minor);
+            Ok(())
+        } else {
+            Err("".into())
+        }
+    }
+
     pub fn generate(&self, dim: Plot) -> (Vec<WindowSpace>, Vec<BorderSpace>) {
         let mut window_out = Vec::new();
         let mut border_out = Vec::new();

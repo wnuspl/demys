@@ -129,7 +129,7 @@ impl Window for WindowManager {
             }
 
             if let WindowRequest::RemoveSelfWindow = e {
-                // self.layout.remove_single(0);
+                self.layout.grid.remove_minor(0);
                 self.layout.generate();
             }
 
