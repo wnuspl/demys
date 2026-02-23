@@ -8,6 +8,7 @@ last updated 2.22.2026 10:07pm
 
 ## primary
 - add nav to layout
+- take up available space
 
 ## secondary
 - start edit system
@@ -17,7 +18,6 @@ last updated 2.22.2026 10:07pm
 - 3+ lines wrapping
 - filling total width/height with separate windows
 - local vs global adds
-- folder priority in fs
 
 # to figure out
 - scrolling

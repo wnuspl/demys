@@ -71,16 +71,24 @@ impl DirectoryRep {
         self.children = Vec::new();
 
         // add to children
+        let mut folders = Vec::new();
+        let mut files = Vec::new();
         if let Ok(dir_iter) = read_dir(&self.dir) {
             for entry in dir_iter {
                 if let Ok(entry) = entry {
-                    self.children.push(entry.into());
+                    if entry.file_type().unwrap().is_dir() {
+                        folders.push(entry.into());
+                    } else {
+                        files.push(entry.into());
+                    }
                 }
             }
         }
 
-        self.is_open = true;
+        self.children.append(&mut folders);
+        self.children.append(&mut files);
 
+        self.is_open = true;
 
         Ok(())
     }
@@ -228,11 +236,24 @@ impl Window for FSWindow {
         for (i, line) in text.split("\n").enumerate() {
             let mut styled = StyledText::new(line.to_string());
 
-            if self.focused && i == self.line {
-                styled = styled.with(StyleAttribute::BgColor(ThemeColor::Yellow));
+            if let Some(first) = styled.get_text().trim_start().chars().next() {
+                if !(first == '>' || first == 'v') {
+                    styled = styled
+                        .with(StyleAttribute::Italic(true));
+                } else {
+                    styled = styled
+                        .with(StyleAttribute::Color(ThemeColor::Green))
+                        .with(StyleAttribute::Bold(true));
+                }
             }
 
-            canvas.write_wrap(&styled);
+            if self.focused && i == self.line {
+                styled = styled
+                    .with(StyleAttribute::BgColor(ThemeColor::Yellow))
+                    .with(StyleAttribute::Color(ThemeColor::Black));
+            }
+
+            canvas.write(&styled);
             canvas.to_next_line();
         }
     }

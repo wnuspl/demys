@@ -40,6 +40,7 @@ impl From<ThemeColor> for crossterm::style::Color {
 pub enum StyleAttribute {
     Color(ThemeColor),
     Bold(bool),
+    Italic(bool),
     BgColor(ThemeColor),
 }
 impl From<StyleAttribute> for usize {
@@ -47,13 +48,14 @@ impl From<StyleAttribute> for usize {
         match attr {
             StyleAttribute::Color(_) => 0,
             StyleAttribute::Bold(_) => 1,
-            StyleAttribute::BgColor(_) => 2,
+            StyleAttribute::Italic(_) => 2,
+            StyleAttribute::BgColor(_) => 3,
         }
     }
 }
 
 impl StyleAttribute {
-    pub const COUNT: usize = 3;
+    pub const COUNT: usize = 4;
     /// Apply attribute to stdout
     pub fn apply<W: QueueableCommand + Write>(&self, stdout: &mut W) {
         match self {
@@ -68,6 +70,15 @@ impl StyleAttribute {
                         SetAttribute(Attribute::Bold)
                     } else {
                         SetAttribute(Attribute::NormalIntensity)
+                    }
+                );
+            }
+            StyleAttribute::Italic(italic) => {
+                let _ = stdout.queue(
+                    if *italic {
+                        SetAttribute(Attribute::Italic)
+                    } else {
+                        SetAttribute(Attribute::NoItalic)
                     }
                 );
             }
@@ -86,6 +97,9 @@ impl StyleAttribute {
             }
             StyleAttribute::Bold(_) => {
                 stdout.queue(SetAttribute(Attribute::NormalIntensity))
+            }
+            StyleAttribute::Italic(_) => {
+                stdout.queue(SetAttribute(Attribute::NoItalic))
             }
             StyleAttribute::BgColor(_) => {
                 stdout.queue(SetBackgroundColor(Color::Reset))
