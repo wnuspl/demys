@@ -28,19 +28,24 @@ last updated 2.22.2026 10:07pm
 ## abstract timeline
 v0.1.0-alpha
 - basic vim text controls
-- tab splitting/joining
+- tab splitting
 - a few : commands
 
 v0.2.0-alpha
+- complete window management
+- robust wrapping/scrolling
+- useful vim features
+
+v0.3.0-alpha
 - edit system
 - selections
 
-v0.3.0-alpha
-- popups
+v0.4.0-alpha
+- syntax highlighting
 - config menu
 
 *release version!*
 
 ## bonus
-- syntax highlighting
+- autocomplete
 - integrated terminal
