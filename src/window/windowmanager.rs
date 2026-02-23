@@ -98,17 +98,15 @@ impl Window for WindowManager {
             let mut border_canvas;
             let text;
             let s;
-            match border {
-                BorderSpace::Horizontal { length, thickness, start} => {
-                    border_canvas = Canvas::new(Plot::new(*thickness, *length));
-                    text = "#".repeat(length*thickness);
-                    s = start;
-                }
-                BorderSpace::Vertical { length, thickness, start} => {
-                    border_canvas = Canvas::new(Plot::new(*length, *thickness));
-                    text = "#".repeat(length * thickness);
-                    s = start;
-                }
+            let BorderSpace { vertical, length, thickness, start } = border;
+            if *vertical {
+                border_canvas = Canvas::new(Plot::new(*length, *thickness));
+                text = "#".repeat(length * thickness);
+                s = start;
+            } else {
+                border_canvas = Canvas::new(Plot::new(*thickness, *length));
+                text = "#".repeat(length*thickness);
+                s = start;
             }
             let text = StyledText::new(text)
                 .with(StyleAttribute::BgColor(ThemeColor::Black))
@@ -125,13 +123,13 @@ impl Window for WindowManager {
         for e in requests.iter() {
             if let WindowRequest::AddWindow(..) = e {
                 if self.container.window_count() > self.layout.get_windows().len() {
-                    self.layout.grid.split(true);
+                    self.layout.grid.split_minor(0);
                     self.layout.generate();
                 }
             }
 
             if let WindowRequest::RemoveSelfWindow = e {
-                self.layout.remove_single(0);
+                // self.layout.remove_single(0);
                 self.layout.generate();
             }
 
@@ -180,8 +178,7 @@ impl WindowContainer for WindowManager {
 
 impl WindowManager {
     pub fn new() -> Self {
-        let mut layout = Layout::new();
-        layout.generate();
+        let mut layout = Layout::new(Plot::new(0,0));
         Self {
             container: OrderedWindowContainer::new(),
             layout,
@@ -193,7 +190,6 @@ impl WindowManager {
 
     pub fn resize(&mut self, dim: Plot) {
         self.layout.set_dim(dim);
-        self.layout.generate();
         // propagate
         self.generate_layout();
     }
@@ -209,34 +205,5 @@ impl WindowManager {
 
     pub fn set_dir(&mut self, dir: PathBuf) {
         self.current_dir = dir;
-    }
-
-    // --------- DRAWING METHODS ------------
-    pub fn draw<W: QueueableCommand + Write>(&self, stdout: &mut W) {
-        for border_space in self.layout.get_borders() {
-            let mut canvas;
-            let content;
-            let pos;
-            match border_space {
-                BorderSpace::Vertical {length, thickness, start } => {
-                    canvas = Canvas::new(Plot::new(*length, *thickness));
-                    content = "|".repeat(length*thickness);
-                    pos = start;
-                },
-                BorderSpace::Horizontal {length, thickness, start} => {
-                    canvas = Canvas::new(Plot::new(*length, *thickness));
-                    content = "-".repeat(length*thickness);
-                    pos = start;
-                },
-            }
-            let _ = canvas.write_wrap(
-                &StyledText::new(content)
-                    .with(StyleAttribute::Color(ThemeColor::Green))
-                    .with(StyleAttribute::BgColor(ThemeColor::Black))
-            );
-
-            canvas.queue_write(stdout, *pos);
-
-        }
     }
 }

@@ -1,85 +1,188 @@
+use std::cmp::min;
 use std::error::Error;
-use std::mem;
+use std::mem::discriminant;
 use crate::plot::Plot;
 
-
-pub struct Layout {
-    pub grid: Grid,
-    window_space: Vec<WindowSpace>,
-    border_space: Vec<BorderSpace>,
-    current_dim: Plot
-}
-
-#[derive(Clone)]
-pub enum Grid {
-    Horizontal {
-        body: Vec<Box<Grid>>,
-        scales: Vec<f32>
-    },
-    Vertical {
-        body: Vec<Box<Grid>>,
-        scales: Vec<f32>
-    },
-    Single
-}
-
-#[derive(Copy,Clone)]
 pub struct WindowSpace {
     pub dim: Plot,
     pub start: Plot
 }
-
-pub enum BorderSpace {
-    Vertical {
-        length: usize,
-        thickness: usize,
-        start: Plot
-    },
-    Horizontal {
-        length: usize,
-        thickness: usize,
-        start: Plot
-    }
+pub struct BorderSpace {
+    pub vertical: bool,
+    pub start: Plot,
+    pub length: usize,
+    pub thickness: usize
+}
+pub struct Layout {
+    window_space: Vec<WindowSpace>,
+    border_space: Vec<BorderSpace>,
+    pub(crate) grid: Grid,
+    generated: bool,
+    dim: Plot
+}
+pub struct Grid {
+    vertical_major: bool,
+    major_scales: Vec<f32>,
+    minor_scales: Vec<Vec<f32>>
 }
 
 
 // all elements in output sum to 1
-fn to_dist_vec(vec: &Vec<f32>) -> Vec<f32> {
+// functional awesome :sunglasses:
+fn to_distribution_vec(vec: &Vec<f32>) -> Vec<f32> {
     let sum = vec.iter().sum::<f32>();
-    vec.iter().map(|x| x/sum).collect()
+    vec.iter().map(|x| x / sum).collect()
 }
 
+impl Grid {
+    pub fn new() -> Grid {
+        Grid {
+            vertical_major: false,
+            major_scales: vec![1.0],
+            minor_scales: vec![vec![1.0]],
+        }
+    }
+    /// Add another window split along the major axis
+    pub fn split_major(&mut self) {
+        let current_splits = self.major_scales.len();
 
-impl Layout {
-    pub fn new() -> Self {
-        Self {
-            grid: Grid::new(),
-            window_space: Vec::new(),
-            border_space: Vec::new(),
-            current_dim: Plot::new(0,0)
+        self.major_scales.push(1.0/current_splits as f32);
+        self.major_scales = to_distribution_vec(&self.major_scales);
+
+        self.minor_scales.push(vec![1.0]);
+    }
+    /// Add another window split along the minor axis
+    pub fn split_minor(&mut self, index: usize) -> Result<(), Box<dyn Error>> {
+        if let Some(minor) = self.minor_scales.get_mut(index) {
+            let current_splits = minor.len();
+            minor.push(1.0/current_splits as f32);
+
+            *minor = to_distribution_vec(minor);
+            Ok(())
+        } else {
+            Err("".into())
         }
     }
 
-    pub fn get_dim(&self) -> &Plot {
-        &self.current_dim
+    pub fn generate(&self, dim: Plot) -> (Vec<WindowSpace>, Vec<BorderSpace>) {
+        let mut window_out = Vec::new();
+        let mut border_out = Vec::new();
+
+
+        let mut major_offset = 0;
+        let mut major_iter = self.major_scales.iter().zip(self.minor_scales.iter()).peekable();
+
+        let major_available = if self.vertical_major {
+            dim.col
+        } else {
+            dim.row
+        } - (self.major_scales.len()-1)*1;
+
+        while let Some((major_scale, minor)) = major_iter.next() {
+            let major_size = (major_available as f32*major_scale) as usize;
+            let mut minor_iter = minor.iter().peekable();
+            let mut minor_offset = 0;
+            let minor_available = if self.vertical_major {
+                dim.row
+            } else {
+                dim.col
+            } - (minor.len()-1)*1;
+
+            while let Some(minor_scale) = minor_iter.next() {
+                let minor_size = (minor_available as f32*minor_scale) as usize;
+                let start;
+                let dim;
+                if self.vertical_major {
+                    start = Plot::new(minor_offset, major_offset);
+                    dim =  Plot::new(minor_size, major_size);
+                } else {
+                    start = Plot::new(major_offset, minor_offset);
+                    dim =  Plot::new(major_size, minor_size);
+                };
+
+                let window = WindowSpace {
+                    dim,
+                    start
+                };
+
+
+
+
+                if minor_iter.peek().is_some() {
+                    minor_offset += minor_size;
+
+                    // // border
+                    let thickness = 1;
+
+                    let start = if self.vertical_major {
+                        Plot::new(minor_offset, major_offset)
+                    } else {
+                        Plot::new(major_offset, minor_offset)
+                    };
+
+                    border_out.push(BorderSpace {
+                        start,
+                        vertical: !self.vertical_major,
+                        length: major_size,
+                        thickness
+                    });
+
+                    minor_offset += thickness;
+               }
+
+                window_out.push(window);
+            }
+
+            if major_iter.peek().is_some() {
+                major_offset += major_size;
+                let thickness = 1;
+
+                let start = if self.vertical_major {
+                    Plot::new(0, major_offset)
+                } else {
+                    Plot::new(major_offset, 0)
+                };
+
+                border_out.push(BorderSpace {
+                    start,
+                    vertical: self.vertical_major,
+                    length: if self.vertical_major { dim.row } else { dim.col },
+                    thickness
+                });
+
+                major_offset += thickness;
+            }
+        }
+
+        (window_out, border_out)
+    }
+
+}
+
+
+
+impl Layout {
+    pub fn new(dim: Plot) -> Layout {
+        Layout {
+            window_space: Vec::new(),
+            border_space: Vec::new(),
+            grid: Grid::new(),
+            generated: false,
+            dim
+        }
     }
     pub fn set_dim(&mut self, dim: Plot) {
-        self.current_dim = dim;
+        self.dim = dim;
+        self.generated = false;
+        self.generate();
     }
-    pub fn remove_single(&mut self, idx: usize) -> Result<(), Box<dyn Error>> {
-        let mut remaining = idx;
-        let ret = self.grid.remove_single(&mut remaining);
-        ret
-    }
-    // set window_pos, border_pos
     pub fn generate(&mut self) {
-        let mut space = self.grid.generate_space(self.current_dim, Plot::new(0,0));
+        if self.generated { return; }
 
-        self.window_space = mem::take(&mut space.0);
-        self.border_space = mem::take(&mut space.1);
-        self.current_dim = self.current_dim;
+        let result = self.grid.generate(self.dim);
+        self.window_space = result.0;
+        self.border_space = result.1;
     }
-
     pub fn get_windows(&self) -> &Vec<WindowSpace> {
         &self.window_space
     }
@@ -90,190 +193,72 @@ impl Layout {
 
 
 
-impl Grid {
-    const BORDER_THICKNESS: usize = 1;
-    pub fn new() -> Self {
-        Self::Single
+
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn creates_splits() {
+        let mut grid = Grid::new();
+
+        grid.split_major();
+        assert_eq!(grid.major_scales.len(), 2);
+
+        grid.split_major();
+        assert_eq!(grid.major_scales.len(), 3);
+
+        grid.split_minor(0);
+        assert_eq!(grid.major_scales.len(), 3);
+        assert_eq!(grid.minor_scales[0].len(), 2);
+
+        grid.split_minor(0);
+        assert_eq!(grid.minor_scales[0].len(), 3);
     }
-    fn vsplit() -> Self {
-        Self::Vertical {
-            body: vec![Box::new(Self::new()), Box::new(Self::new())],
-            scales: vec![0.5, 0.5]
-        }
-    }
-    fn hsplit() -> Self {
-        Self::Horizontal {
-            body: vec![Box::new(Self::new()), Box::new(Self::new())],
-            scales: vec![0.5, 0.5]
-        }
-    }
 
-    fn remove_single(&mut self, remaining: &mut usize) -> Result<(), Box<dyn Error>> {
-        match self {
-            Grid::Horizontal { body, scales }
-            | Grid::Vertical { body, scales } => {
-                let mut found = None; // holds local index of target window
+    #[test]
+    fn splits_are_even() {
+        let mut grid = Grid::new();
 
-                for (i, grid) in body.iter_mut().enumerate() {
-                    if let Grid::Single = **grid {
+        grid.split_major();
+        grid.split_major();
+        assert_eq!(grid.major_scales[0], grid.major_scales[1]);
+        assert_eq!(grid.major_scales[1], grid.major_scales[2]);
 
-                        // check if target
-                        if *remaining == 0 {
-                            found = Some(i);
-                            break;
-                        }
-
-                        *remaining -= 1;
-                    } else {
-                        // recurse
-                        grid.remove_single(remaining);
-                    }
-                }
-
-                if let Some(i) = found {
-                    body.remove(i);
-                    scales.remove(i);
-                    *scales = to_dist_vec(scales);
-                }
-            }
-            Grid::Single => if *remaining != 0 { return Err("".into()) }
-        }
-        Ok(())
+        grid.split_minor(0);
+        assert_eq!(grid.minor_scales[0][0], grid.minor_scales[0][1]);
     }
 
 
-
-    // adds another split to layout, if single, defaults to vertical split
-    // new window is 1/n size where n is new number of splits
-    pub fn split(&mut self, vertical:bool) {
-        match self {
-            Self::Single => *self = if vertical { Self::vsplit() } else { Self::hsplit() },
-            Self::Vertical { body, scales: widths } => {
-                if vertical {
-                    // set width to 1/n
-                    let w = 1.0 / (body.len() as f32);
-                    widths.push(w);
-                    *widths = to_dist_vec(widths);
-
-                    body.push(Box::new(Self::Single));
-                } else {
-                    // self becomes inner layout, create 2 way hsplit
-                    let inner = mem::replace(self, Self::hsplit());
-                    *self.get_body_mut(0).unwrap() = Box::new(inner);
-                }
-            },
-            Self::Horizontal { body, scales: heights } => {
-                if !vertical {
-                    // set height to 1/n
-                    let h = 1.0 / (body.len() as f32);
-                    heights.push(h);
-                    *heights = to_dist_vec(heights);
-
-                    body.push(Box::new(Self::Single));
-                } else {
-                    // self becomes inner layout, create 2 way vsplit
-                    let inner = mem::replace(self, Self::vsplit());
-                    *self.get_body_mut(0).unwrap() = Box::new(inner);
-                }
-            },
-            _ => {}
-        }
-    }
-
-    pub fn get_body_mut(&mut self, idx: usize) -> Option<&mut Box<Self>> {
-        match self {
-            Self::Single => { None },
-            Self::Vertical { body, .. }
-            | Self::Horizontal { body, .. } => {
-                body.get_mut(idx)
-            },
-            _ => None
-        }
-    }
+    #[test]
+    fn window_size_single() {
+        let mut grid = Grid::new();
 
 
-    // main function of window layout
-    // maps window to physical position in terminal based on size
-    // return is Vec<dim, start>
-    pub fn generate_space(&self, dim: Plot, start: Plot) -> (Vec<WindowSpace>, Vec<BorderSpace>) {
-        let mut windows = Vec::new();
-        let mut borders = Vec::new();
-        match &self {
-            Self::Single => {
-                windows.push(WindowSpace {dim, start});
-            }
+        let res = grid.generate(Plot::new(40,100));
+        let window = &res.0[0];
 
-            // Fixed width, variable height
-            Self::Horizontal { body, scales: heights } => {
-                if body.len() == 0 { return (Vec::new(), Vec::new()) }
-                let available_height = dim.row-(body.len() as usize-1)*Self::BORDER_THICKNESS;
-                let mut vertical_offset = 0;
-
-                let mut iter = body.iter().zip(heights.iter()).peekable();
-
-                while let Some((layout, height_percent)) = iter.next() {
-                    let h = (height_percent*available_height as f32) as usize;
-
-                    let mut inner = layout.generate_space(
-                        Plot::new(h, dim.col),                                // size
-                        (start.row+vertical_offset, start.col).into()       // start
-                    );
-
-                    windows.append(&mut inner.0);
-                    borders.append(&mut inner.1);
-
-                    vertical_offset += h;
-
-                    if iter.peek().is_some() {
-                        borders.push(BorderSpace::Horizontal {
-                            thickness: Self::BORDER_THICKNESS,
-                            length: dim.col,
-                            start: (start.row+vertical_offset, start.col).into()
-                        });
-
-                        vertical_offset += Self::BORDER_THICKNESS;
-                    }
-                }
-            },
+        assert_eq!(window.dim, Plot::new(40, 100));
 
 
 
+        grid.split_major();
+        let res2 = grid.generate(Plot::new(40,100));
+        let window1 = &res2.0[0];
+        let window2 = &res2.0[1];
 
-            // Fixed height, variable width
-            Self::Vertical { body, scales: widths } => {
-                if body.len() == 0 { return (Vec::new(), Vec::new()) }
-                let available_width = dim.col-(body.len() as usize-1)*Self::BORDER_THICKNESS;
-                let mut horizontal_offset = 0;
-
-                let mut iter = body.iter().zip(widths.iter()).peekable();
-
-                while let Some((layout, width_percent)) = iter.next() {
-                    let w = (width_percent*available_width as f32) as usize;
+        assert_eq!(window1.dim, Plot::new(40, 50));
+        assert_eq!(window2.dim, Plot::new(40, 50));
 
 
-                    let mut inner = layout.generate_space(
-                        (dim.row, w).into(),                                // size
-                        (start.row, start.col+horizontal_offset).into()     // start
-                    );
 
-                    windows.append(&mut inner.0);
-                    borders.append(&mut inner.1);
+        grid.split_minor(0);
+        let res3 = grid.generate(Plot::new(40,100));
 
-                    horizontal_offset += w;
+        assert_eq!(res3.0[0].dim, Plot::new(20, 50));
+        assert_eq!(res3.0[1].dim, Plot::new(20, 50));
 
-
-                    if iter.peek().is_some() {
-                        borders.push(BorderSpace::Vertical {
-                            thickness: Self::BORDER_THICKNESS,
-                            length: dim.row,
-                            start: (start.row, start.col+horizontal_offset).into()
-                        });
-                        horizontal_offset += Self::BORDER_THICKNESS;
-                    }
-                }
-            },
-            _ => {}
-        }
-        (windows, borders)
     }
 }

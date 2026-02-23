@@ -113,8 +113,17 @@ impl TextWindow {
                 _ => ()
             }
 
-            (KeyCode::Char('J'), _) => { self.scroll += 10; }
-            (KeyCode::Char('K'), _) => { if self.scroll >= 10 { self.scroll -= 10; } }
+            (KeyCode::Char('J'), _) => {
+                self.scroll += 10;
+                self.tb.cursor_move_by(Some(10), None);
+            }
+
+            (KeyCode::Char('K'), _) => {
+                if self.scroll >= 10 {
+                    self.scroll -= 10;
+                    self.tb.cursor_move_by(Some(-10), None);
+                }
+            }
 
 
             (KeyCode::Char('h'), _) => { self.tb.cursor_move_by(None,Some(-1)); }
@@ -161,7 +170,7 @@ impl TextWindow {
 impl Window for TextWindow {
     fn name(&self) -> String {
         let saved_symbol = if self.tb.saved { "" } else { "*" };
-        format!("{}{}",saved_symbol,self.name)
+        format!("{}{}", saved_symbol, self.name)
     }
     fn input_bypass(&self) -> bool {
         match self.mode {
@@ -291,6 +300,7 @@ impl Window for TextWindow {
         // write cursor
         if self.focused {
             let mut cursor = self.tb.wrap_cursor(canvas.get_dim().col);
+            cursor.row -= self.scroll;
             if self.settings.line_numbers {
                 cursor += Plot::new(0, 3);
             }

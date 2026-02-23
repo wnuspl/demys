@@ -1,11 +1,13 @@
 # todo
-last updated 2.21.2026 3:25pm
+last updated 2.22.2026 10:07pm
 
 ---
 
 ## rewrites
-- layout system (reference grid-plan.txt)
 - buffer (become gap buffer)
+
+## primary
+- add nav to layout
 
 ## secondary
 - start edit system
@@ -15,10 +17,12 @@ last updated 2.21.2026 3:25pm
 - 3+ lines wrapping
 - filling total width/height with separate windows
 - local vs global adds
+- folder priority in fs
 
 # to figure out
 - scrolling
 - async highlighting
+- local/global quit
 
 
 ## abstract timeline
