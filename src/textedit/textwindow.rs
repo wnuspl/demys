@@ -10,7 +10,7 @@ use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
-use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, TextBufferOperation};
+use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, TextBufferOperation};
 use crate::textedit::traverse_ops::{DownLine, UpLine};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
@@ -99,7 +99,7 @@ impl TextWindow {
                 self.tb.apply_operation(Box::new(DeleteBack::new(1)));
             }
             (KeyCode::Enter, _) => {
-                self.tb.apply_operation(Box::new(InsertChar('\n')));
+                self.tb.apply_operation(Box::new(InsertLinebreak));
             }
             (KeyCode::Char(ch), _) => {
                 self.tb.apply_operation(Box::new(InsertChar(ch)));

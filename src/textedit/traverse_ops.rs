@@ -1,11 +1,12 @@
+use crate::textedit::buffer::TBMetrics;
 use crate::textedit::fixed_char;
 use crate::textedit::operation::{CursorLeft, CursorRight, TBOperationError, TextBufferOperation};
 
 
-fn undo_subop(subop: &mut Option<Box<dyn TextBufferOperation>>, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, length: &mut usize) -> Result<(), TBOperationError> {
+fn undo_subop(subop: &mut Option<Box<dyn TextBufferOperation>>, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
     if subop.is_none() { return Err(TBOperationError::LogicError(None)); }
 
-    subop.as_mut().unwrap().undo(cursor, gap_end, content, length)
+    subop.as_mut().unwrap().undo(cursor, gap_end, content, metrics)
 }
 
 fn find_line_break<'a>(iter: impl Iterator<Item=&'a fixed_char>) -> Option<usize> {
@@ -29,18 +30,18 @@ impl TextBufferOperation for DownLine {
     fn modifies(&self) -> bool {
         false
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, length: &mut usize) -> Result<(), TBOperationError> {
+    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
         // find next line
         let iter = content[*cursor..].iter();
         if let Some(lb) = find_line_break(iter) {
             self.subop = Some(Box::new(CursorRight(lb)));
-            self.subop.as_mut().unwrap().apply(cursor, gap_end, content, length)
+            self.subop.as_mut().unwrap().apply(cursor, gap_end, content, metrics)
         } else {
             Err(TBOperationError::MovesOutOfBounds)
         }
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, length: &mut usize) -> Result<(), TBOperationError> {
-        undo_subop(&mut self.subop, cursor, gap_end, content, length)
+    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+        undo_subop(&mut self.subop, cursor, gap_end, content, metrics)
     }
 }
 
@@ -58,17 +59,17 @@ impl TextBufferOperation for UpLine {
     fn modifies(&self) -> bool {
         false
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, length: &mut usize) -> Result<(), TBOperationError> {
+    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
         // find next line
         let iter = content[..*cursor].iter().rev();
         if let Some(lb) = find_line_break(iter) {
             self.subop = Some(Box::new(CursorLeft(lb)));
-            self.subop.as_mut().unwrap().apply(cursor, gap_end, content, length)
+            self.subop.as_mut().unwrap().apply(cursor, gap_end, content, metrics)
         } else {
             Err(TBOperationError::MovesOutOfBounds)
         }
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, length: &mut usize) -> Result<(), TBOperationError> {
-        undo_subop(&mut self.subop, cursor, gap_end, content, length)
+    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+        undo_subop(&mut self.subop, cursor, gap_end, content, metrics)
     }
 }

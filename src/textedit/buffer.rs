@@ -1,16 +1,47 @@
+use std::cmp;
+use std::collections::HashMap;
 use std::error::Error;
 use std::path::PathBuf;
 use crate::plot::Plot;
 use crate::textedit::fixed_char;
 use crate::textedit::operation::{TextBufferOperation, TBOperationError};
 
+pub struct TBMetrics {
+    pub length: usize,
+    linebreaks: Vec<usize>,
+    linebreaks_mirror: HashMap<usize, usize>, //gap pos to count
+}
+
+impl TBMetrics {
+    pub fn set_linebreak_raw(&mut self, gap_index: usize) {
+        let i = self.linebreaks.iter().position(|lb| {
+            lb > &gap_index
+        });
+        if let Some(i) = i {
+            self.linebreaks_mirror.insert(gap_index, i);
+            self.linebreaks.insert(i, gap_index);
+        } else {
+            self.linebreaks_mirror.insert(gap_index, self.linebreaks.len());
+            self.linebreaks.push(gap_index);
+        }
+    }
+    pub fn remove_linebreak_raw(&mut self, gap_index: usize) {
+        if let Some(order) = self.linebreaks_mirror.remove(&gap_index) {
+            self.linebreaks.remove(order);
+        }
+    }
+    pub fn remove_linebreak_order(&mut self, order: usize) {
+        let gap_index = self.linebreaks.remove(order);
+        self.linebreaks_mirror.remove(&gap_index);
+    }
+}
 
 pub struct TextBuffer {
-    length: usize,
     content: Vec<fixed_char>,
     cursor: usize,
     gap_end: usize,
-    operations: Vec<Box<dyn TextBufferOperation>>
+    operations: Vec<Box<dyn TextBufferOperation>>,
+    metrics: TBMetrics,
 }
 
 
@@ -21,14 +52,18 @@ impl From<PathBuf> for TextBuffer {
 }
 
 impl TextBuffer {
-    const DEFAULT_GAP_SIZE: usize = 100;
+    const DEFAULT_GAP_SIZE: usize = 200;
     pub fn new() -> TextBuffer {
         TextBuffer {
-            length: 0,
             content: vec![' ' as fixed_char; TextBuffer::DEFAULT_GAP_SIZE],
             cursor: 0,
             gap_end: Self::DEFAULT_GAP_SIZE,
-            operations: Vec::new()
+            operations: Vec::new(),
+            metrics: TBMetrics {
+                length: 0,
+                linebreaks: vec![],
+                linebreaks_mirror: HashMap::new(),
+            }
         }
     }
     pub(crate) fn apply_operation(&mut self, mut operation: Box<dyn TextBufferOperation>) {
@@ -36,7 +71,7 @@ impl TextBuffer {
             &mut self.cursor,
             &mut self.gap_end,
             &mut self.content,
-            &mut self.length
+            &mut self.metrics
         );
 
         if let Err(error) = result {
@@ -54,7 +89,7 @@ impl TextBuffer {
                 &mut self.cursor,
                 &mut self.gap_end,
                 &mut self.content,
-                &mut self.length
+                &mut self.metrics
             );
 
             // handle error?
@@ -84,18 +119,9 @@ impl TextBuffer {
         }
     }
 
-    fn get_line(&self) -> usize {
-        let mut line = 0;
-        for c in self.content.iter().take(self.cursor) {
-            if *c == '\n' as fixed_char  { line += 1; }
-        }
-        return line;
-    }
-
     pub fn get_cursor(&self) -> usize {
         self.cursor
     }
-
 
     pub fn string_raw(&self) -> String {
         self.content.iter().map(|c| *c as char).collect()
@@ -123,7 +149,7 @@ impl TextBuffer {
 
 #[cfg(test)]
 mod test {
-    use crate::textedit::operation::{CursorLeft, CursorRight, InsertChar, InsertString};
+    use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString};
     use super::*;
 
     #[test]
@@ -133,7 +159,7 @@ mod test {
         buf.apply_operation(Box::new(InsertChar('1')));
 
         assert_eq!(buf.cursor, 1);
-        assert_eq!(buf.length, 1);
+        assert_eq!(buf.metrics.length, 1);
         assert_eq!("1".to_string(), buf.string());
 
 
@@ -142,7 +168,7 @@ mod test {
         buf.apply_operation(Box::new(InsertChar('4')));
 
         assert_eq!(buf.cursor, 4);
-        assert_eq!(buf.length, 4);
+        assert_eq!(buf.metrics.length, 4);
         assert_eq!("1234".to_string(), buf.string());
     }
 
@@ -295,5 +321,41 @@ mod test {
         buf.apply_operation(Box::new(InsertString::new(string1.clone())));
         assert!(buf.gap_end-buf.cursor>2); // meaning it fully realloced
         assert_eq!(buf.string(), string1);
+    }
+
+
+    #[test]
+    fn linebreaks_tracked() {
+        let mut buf = TextBuffer::new();
+        buf.apply_operation(Box::new(InsertChar('0')));
+
+        buf.apply_operation(Box::new(InsertLinebreak));
+        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+
+        buf.apply_operation(Box::new(InsertChar('1')));
+
+        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+
+        buf.undo_operation();
+        buf.undo_operation();
+        assert_eq!(buf.metrics.linebreaks.len(), 0);
+    }
+
+    #[test]
+    fn linebreaks_tracked_across_gap() {
+        let mut buf = TextBuffer::new();
+        buf.apply_operation(Box::new(InsertChar('0')));
+
+        buf.apply_operation(Box::new(InsertLinebreak));
+        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+
+        buf.apply_operation(Box::new(CursorLeft(1)));
+        assert_eq!(buf.metrics.linebreaks[0], buf.gap_end+1);
+
+        buf.apply_operation(Box::new(CursorRight(1)));
+        assert_eq!(buf.metrics.linebreaks[0], 1);
     }
 }
