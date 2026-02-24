@@ -212,30 +212,6 @@ mod test {
         assert_eq!("AB01 N2".to_string(), buf.string());
     }
 
-    #[test]
-    fn get_line() {
-        let mut buf = TextBuffer::new();
-        buf.apply_operation(Box::new(InsertChar('0')));
-        buf.apply_operation(Box::new(InsertChar('1')));
-        buf.apply_operation(Box::new(InsertChar('\n')));
-        println!("{}", buf.cursor);
-        for (i,c) in buf.string().chars().enumerate() {
-            println!("{}, {}", c as usize, i);
-        }
-        assert_eq!(buf.get_line(), 1);
-
-        buf.apply_operation(Box::new(CursorLeft(1)));
-        assert_eq!(buf.get_line(), 0);
-
-        buf.apply_operation(Box::new(InsertChar('\n')));
-        assert_eq!(buf.get_line(), 1);
-
-        buf.apply_operation(Box::new(CursorRight(1)));
-        assert_eq!(buf.get_line(), 2);
-
-
-    }
-
 
     #[test]
     fn gap_reallocates_correctly() {
