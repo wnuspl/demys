@@ -334,4 +334,21 @@ mod test {
         buf.apply_operation(Box::new(CursorRight(1)));
         assert_eq!(buf.metrics.linebreaks[0], 1);
     }
+
+    #[test]
+    fn linebreaks_tracked_across_delete() {
+        let mut buf = TextBuffer::new();
+        buf.apply_operation(Box::new(InsertChar('0')));
+
+        buf.apply_operation(Box::new(InsertLinebreak));
+        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+
+        buf.apply_operation(Box::new(DeleteBack::new(1)));
+        assert_eq!(buf.metrics.linebreaks.len(), 0);
+
+        buf.undo_operation();
+        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+    }
 }

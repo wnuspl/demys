@@ -60,6 +60,11 @@ impl TextBufferOperation for DeleteBack {
         if *cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
 
         let moved = &content[(*cursor-n)..*cursor];
+        for (i, ch) in moved.iter().enumerate() {
+            if *ch == '\n' as fixed_char {
+                metrics.remove_linebreak_raw(*cursor-n+i);
+            }
+        }
         self.1 = Some(Vec::from(moved.clone()));
 
         metrics.length -= n;
@@ -72,6 +77,12 @@ impl TextBufferOperation for DeleteBack {
         if *gap_end-*cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
 
         if self.1.is_none() { return Err(TBOperationError::LogicError(Some("no string found, operation hasn't been applied".to_string())))}
+
+        for (i, ch) in self.1.as_ref().unwrap().iter().enumerate() {
+            if *ch == '\n' as fixed_char {
+                metrics.set_linebreak_raw(*cursor+i);
+            }
+        }
 
         content[*cursor..(*cursor+n)].copy_from_slice( self.1.as_ref().unwrap());
         metrics.length += n;
