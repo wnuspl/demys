@@ -10,7 +10,8 @@ use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
-use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar};
+use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, TextBufferOperation};
+use crate::textedit::traverse_ops::{DownLine, UpLine};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
@@ -130,8 +131,8 @@ impl TextWindow {
 
 
             (KeyCode::Char('h'), _) => { self.tb.apply_operation(Box::new(CursorLeft(1))); }
-            // (KeyCode::Char('j'), _) => { self.tb.cursor_move_by(Some(1),None); }
-            // (KeyCode::Char('k'), _) => { self.tb.cursor_move_by(Some(-1),None); }
+            (KeyCode::Char('j'), _) => { self.tb.apply_operation(Box::new(DownLine::new(1))); }
+            (KeyCode::Char('k'), _) => { self.tb.apply_operation(Box::new(UpLine::new(1))); }
             (KeyCode::Char('l'), _) => { self.tb.apply_operation(Box::new(CursorRight(1))); }
             //
             // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
