@@ -9,6 +9,8 @@ use crate::popup::PopUp;
 use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
+use crate::textedit::buffer_display::wrap_content;
+use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
@@ -88,17 +90,18 @@ impl TextWindow {
         match (key, modifiers) {
             (_, KeyModifiers::CONTROL) => match key {
                 KeyCode::Char('[') => self.mode = Mode::Normal,
+                KeyCode::Char('z') => self.tb.undo_operation(),
                 _ => ()
             },
 
             (KeyCode::Backspace, _) => {
-                self.tb.delete(1);
+                self.tb.apply_operation(Box::new(DeleteBack::new(1)));
             }
             (KeyCode::Enter, _) => {
-                self.tb.insert("\n");
+                self.tb.apply_operation(Box::new(InsertChar('\n')));
             }
             (KeyCode::Char(ch), _) => {
-                self.tb.insert(&ch.to_string());
+                self.tb.apply_operation(Box::new(InsertChar(ch)));
             }
             (KeyCode::Esc, _) => self.mode = Mode::Normal,
             _ => ()
@@ -108,68 +111,69 @@ impl TextWindow {
         match (key, modifiers) {
             (key, KeyModifiers::CONTROL) => match key {
                 KeyCode::Char('s') => {
-                    self.tb.save();
+                    // self.tb.save();
                 }
                 _ => ()
             }
 
             (KeyCode::Char('J'), _) => {
                 self.scroll += 10;
-                self.tb.cursor_move_by(Some(10), None);
+                // self.tb.cursor_move_by(Some(10), None);
             }
 
             (KeyCode::Char('K'), _) => {
                 if self.scroll >= 10 {
                     self.scroll -= 10;
-                    self.tb.cursor_move_by(Some(-10), None);
+                    // self.tb.cursor_move_by(Some(-10), None);
                 }
             }
 
 
-            (KeyCode::Char('h'), _) => { self.tb.cursor_move_by(None,Some(-1)); }
-            (KeyCode::Char('j'), _) => { self.tb.cursor_move_by(Some(1),None); }
-            (KeyCode::Char('k'), _) => { self.tb.cursor_move_by(Some(-1),None); }
-            (KeyCode::Char('l'), _) => { self.tb.cursor_move_by(None,Some(1)); }
-
-            (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
-            (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }
+            (KeyCode::Char('h'), _) => { self.tb.apply_operation(Box::new(CursorLeft(1))); }
+            // (KeyCode::Char('j'), _) => { self.tb.cursor_move_by(Some(1),None); }
+            // (KeyCode::Char('k'), _) => { self.tb.cursor_move_by(Some(-1),None); }
+            (KeyCode::Char('l'), _) => { self.tb.apply_operation(Box::new(CursorRight(1))); }
+            //
+            // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
+            // (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }
 
             // insert mode transitions
             (KeyCode::Char('i'), _) => self.mode = Mode::Insert,
-            (KeyCode::Char('I'), _) => {
-                self.tb.cursor_start_of_line();
-                self.mode = Mode::Insert;
-            }
-            (KeyCode::Char('a'), _) => {
-                self.tb.cursor_move_by(None, Some(1));
-                self.mode = Mode::Insert;
-            }
-            (KeyCode::Char('A'), _) => {
-                self.tb.cursor_end_of_line();
-                self.mode = Mode::Insert;
-            }
-            (KeyCode::Char('o'), _) => {
-                self.tb.cursor_end_of_line();
-                self.tb.insert("\n");
-                self.mode = Mode::Insert;
-            }
+            // (KeyCode::Char('I'), _) => {
+            //     self.tb.cursor_start_of_line();
+            //     self.mode = Mode::Insert;
+            // }
+            // (KeyCode::Char('a'), _) => {
+            //     self.tb.cursor_move_by(None, Some(1));
+            //     self.mode = Mode::Insert;
+            // }
+            // (KeyCode::Char('A'), _) => {
+            //     self.tb.cursor_end_of_line();
+            //     self.mode = Mode::Insert;
+            // }
+            // (KeyCode::Char('o'), _) => {
+            //     self.tb.cursor_end_of_line();
+            //     self.tb.insert("\n");
+            //     self.mode = Mode::Insert;
+            // }
             _ => ()
         }
     }
 
     fn try_quit(&mut self) {
-        if self.tb.saved {
+        // if self.tb.saved {
             self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
-        } else {
-            self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
-        }
+        // } else {
+        //     self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+        // }
     }
 
 }
 
 impl Window for TextWindow {
     fn name(&self) -> String {
-        let saved_symbol = if self.tb.saved { "" } else { "*" };
+        // let saved_symbol = if self.tb.saved { "" } else { "*" };
+        let saved_symbol = "$$";
         format!("{}{}", saved_symbol, self.name)
     }
     fn input_bypass(&self) -> bool {
@@ -197,10 +201,10 @@ impl Window for TextWindow {
             }
             WindowEvent::Command(cmd) => {
                 if cmd == "w" {
-                    self.tb.save();
+                    // self.tb.save();
                 }
                 if cmd == "wq" {
-                    self.tb.save();
+                    // self.tb.save();
                     self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
                 }
                 if cmd == "q!" {
@@ -228,7 +232,8 @@ impl Window for TextWindow {
     fn draw(&self, canvas: &mut Canvas) {
         // write text and line number
         canvas.move_to(Plot::new(0,0));
-        let text = self.tb.wrap_display(self.scroll, canvas.get_dim().col - 3);
+        // let text = self.tb.wrap_display(self.scroll, canvas.get_dim().col - 3);
+        let (text, mut cursor) = wrap_content(self.tb.string(), *canvas.get_dim(), self.tb.get_cursor());
 
         // which lines are shown
 
@@ -250,6 +255,10 @@ impl Window for TextWindow {
                 canvas.to_next_line();
 
 
+                real_n += 1;
+            }
+            if line.len() == 0 {
+                canvas.to_next_line();
                 real_n += 1;
             }
 
@@ -301,10 +310,8 @@ impl Window for TextWindow {
 
         // write cursor
         if self.focused {
-            let mut cursor = self.tb.wrap_cursor(canvas.get_dim().col);
-            cursor.row -= self.scroll;
             if self.settings.line_numbers {
-                cursor += Plot::new(0, 3);
+                cursor.col += 3;
             }
 
             let _ = canvas.set_attribute(
@@ -312,7 +319,7 @@ impl Window for TextWindow {
                     if self.settings.dynamic_caret_color { mode_header_color } else { ThemeColor::Gray },
                 ),
                 cursor,
-                cursor+Plot::new(0,1)
+                cursor + Plot::new(0, 1)
             );
         }
     }
