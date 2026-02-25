@@ -11,7 +11,7 @@ use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
 use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
-use crate::textedit::traverse_ops::{DownLine, EndOfLine, UpLine};
+use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
@@ -133,8 +133,8 @@ impl TextWindow {
 
 
             (KeyCode::Char('h'), _) => { self.tb.apply_operation(Box::new(CursorLeft(1))); }
-            (KeyCode::Char('j'), _) => { self.tb.apply_operation(Box::new(DownLine::new(1))); }
-            (KeyCode::Char('k'), _) => { self.tb.apply_operation(Box::new(UpLine::new(1))); }
+            (KeyCode::Char('j'), _) => { self.tb.apply_operation(Box::new(LineMovement::down(1))); }
+            (KeyCode::Char('k'), _) => { self.tb.apply_operation(Box::new(LineMovement::up(1))); }
             (KeyCode::Char('l'), _) => { self.tb.apply_operation(Box::new(CursorRight(1))); }
             (KeyCode::Char('$'), _) => { self.tb.apply_operation(Box::new(EndOfLine::new())); }
             //
