@@ -1,10 +1,11 @@
-use std::cmp;
+use std::{cmp, fs};
 use std::collections::HashMap;
 use std::error::Error;
+use std::fs::File;
 use std::path::PathBuf;
 use crate::plot::Plot;
 use crate::textedit::fixed_char;
-use crate::textedit::operation::{TextBufferOperation, TBOperationError};
+use crate::textedit::operation::{TextBufferOperation, TBOperationError, InsertString};
 
 pub struct TBMetrics {
     pub length: usize,
@@ -53,7 +54,10 @@ pub struct TextBuffer {
 
 impl From<PathBuf> for TextBuffer {
     fn from(path: PathBuf) -> Self {
-        TextBuffer::new()
+        let content = fs::read_to_string(path).unwrap();
+        let mut tb = TextBuffer::new();
+        tb.apply_operation(Box::new(InsertString::new(content)));
+        tb
     }
 }
 

@@ -63,7 +63,6 @@ impl TextWindow {
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
         let mut tb = TextBuffer::from(path);
-        tb.apply_operation(Box::new(InsertString::new("this is a test\nnext line\nthird line here!".into())));
         let mut tw = Self::new(tb);
         tw.name = name;
         tw
