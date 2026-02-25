@@ -10,8 +10,8 @@ use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
-use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, TextBufferOperation};
-use crate::textedit::traverse_ops::{DownLine, UpLine};
+use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
+use crate::textedit::traverse_ops::{DownLine, EndOfLine, UpLine};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
@@ -62,7 +62,8 @@ impl TextWindow {
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
-        let tb = TextBuffer::from(path);
+        let mut tb = TextBuffer::from(path);
+        tb.apply_operation(Box::new(InsertString::new("this is a test\nnext line\nthird line here!".into())));
         let mut tw = Self::new(tb);
         tw.name = name;
         tw
@@ -94,6 +95,7 @@ impl TextWindow {
                 KeyCode::Char('z') => self.tb.undo_operation(),
                 _ => ()
             },
+            (KeyCode::Char('['), _) => self.mode = Mode::Normal,
 
             (KeyCode::Backspace, _) => {
                 self.tb.apply_operation(Box::new(DeleteBack::new(1)));
@@ -134,6 +136,7 @@ impl TextWindow {
             (KeyCode::Char('j'), _) => { self.tb.apply_operation(Box::new(DownLine::new(1))); }
             (KeyCode::Char('k'), _) => { self.tb.apply_operation(Box::new(UpLine::new(1))); }
             (KeyCode::Char('l'), _) => { self.tb.apply_operation(Box::new(CursorRight(1))); }
+            (KeyCode::Char('$'), _) => { self.tb.apply_operation(Box::new(EndOfLine::new())); }
             //
             // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
             // (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }

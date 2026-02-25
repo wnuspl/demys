@@ -101,6 +101,12 @@ impl TextBufferOperation for InsertString {
         let n = self.0.len();
         if *gap_end-*cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
 
+        for (i, ch) in self.0.iter().enumerate() {
+            if *ch == '\n' as fixed_char {
+                metrics.set_linebreak_raw(*cursor+i);
+            }
+        }
+
         content[*cursor..(*cursor + self.0.len())].copy_from_slice(&self.0);
         metrics.length += n;
         *cursor += n;
@@ -110,6 +116,12 @@ impl TextBufferOperation for InsertString {
     fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
         let n = self.0.len();
         if *cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
+
+        for (i, ch) in self.0.iter().enumerate() {
+            if *ch == '\n' as fixed_char {
+                metrics.remove_linebreak_raw(*cursor-n+i);
+            }
+        }
 
         metrics.length -= n;
         *cursor -= n;
@@ -153,7 +165,7 @@ fn _cursor_left(count: usize, cursor: &mut usize, gap_end: &mut usize, content: 
         if *ch == '\n' as fixed_char {
             let gap_index = (*cursor-count) + i;
             metrics.remove_linebreak_raw(gap_index);
-            metrics.set_linebreak_raw(*gap_end+i);
+            metrics.set_linebreak_raw((*gap_end-count)+i);
         }
     }
 

@@ -8,31 +8,37 @@ use crate::textedit::operation::{TextBufferOperation, TBOperationError};
 
 pub struct TBMetrics {
     pub length: usize,
-    linebreaks: Vec<usize>,
-    linebreaks_mirror: HashMap<usize, usize>, //gap pos to count
+    new_lines_order: Vec<usize>,
+    new_lines_raw: HashMap<usize, usize>, //gap pos to count
 }
 
 impl TBMetrics {
-    pub fn set_linebreak_raw(&mut self, gap_index: usize) {
-        let i = self.linebreaks.iter().position(|lb| {
+    pub fn set_linebreak_raw(&mut self, mut gap_index: usize) {
+        gap_index += 1;
+        let i = self.new_lines_order.iter().position(|lb| {
             lb > &gap_index
         });
         if let Some(i) = i {
-            self.linebreaks_mirror.insert(gap_index, i);
-            self.linebreaks.insert(i, gap_index);
+            self.new_lines_raw.insert(gap_index, i);
+            self.new_lines_order.insert(i, gap_index);
         } else {
-            self.linebreaks_mirror.insert(gap_index, self.linebreaks.len());
-            self.linebreaks.push(gap_index);
+            self.new_lines_raw.insert(gap_index, self.new_lines_order.len());
+            self.new_lines_order.push(gap_index);
         }
     }
-    pub fn remove_linebreak_raw(&mut self, gap_index: usize) {
-        if let Some(order) = self.linebreaks_mirror.remove(&gap_index) {
-            self.linebreaks.remove(order);
+    pub fn remove_linebreak_raw(&mut self, mut gap_index: usize) {
+        gap_index += 1;
+        if let Some(order) = self.new_lines_raw.remove(&gap_index) {
+            self.new_lines_order.remove(order);
         }
     }
     pub fn remove_linebreak_order(&mut self, order: usize) {
-        let gap_index = self.linebreaks.remove(order);
-        self.linebreaks_mirror.remove(&gap_index);
+        let gap_index = self.new_lines_order.remove(order);
+        self.new_lines_raw.remove(&gap_index);
+    }
+
+    pub fn get_new_line_order(&self) -> &Vec<usize> {
+        &self.new_lines_order
     }
 }
 
@@ -61,8 +67,8 @@ impl TextBuffer {
             operations: Vec::new(),
             metrics: TBMetrics {
                 length: 0,
-                linebreaks: vec![],
-                linebreaks_mirror: HashMap::new(),
+                new_lines_order: vec![0],
+                new_lines_raw: HashMap::from([(0, 0)]),
             }
         }
     }
@@ -136,7 +142,6 @@ impl TextBuffer {
         }).collect()
     }
 
-
     fn realloc_gap(&mut self, size: usize) {
         if self.gap_end-self.cursor >= size { return; } // don't un realloc?
         let diff = size - (self.gap_end-self.cursor);
@@ -150,6 +155,7 @@ impl TextBuffer {
 #[cfg(test)]
 mod test {
     use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString};
+    use crate::textedit::traverse_ops::current_line;
     use super::*;
 
     #[test]
@@ -306,17 +312,17 @@ mod test {
         buf.apply_operation(Box::new(InsertChar('0')));
 
         buf.apply_operation(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.linebreaks[0], 1);
-        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
+        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
 
         buf.apply_operation(Box::new(InsertChar('1')));
 
-        assert_eq!(buf.metrics.linebreaks[0], 1);
-        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
+        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
 
         buf.undo_operation();
         buf.undo_operation();
-        assert_eq!(buf.metrics.linebreaks.len(), 0);
+        assert_eq!(buf.metrics.new_lines_order.len(), 0);
     }
 
     #[test]
@@ -325,14 +331,14 @@ mod test {
         buf.apply_operation(Box::new(InsertChar('0')));
 
         buf.apply_operation(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.linebreaks[0], 1);
-        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
+        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
 
         buf.apply_operation(Box::new(CursorLeft(1)));
-        assert_eq!(buf.metrics.linebreaks[0], buf.gap_end+1);
+        assert_eq!(buf.metrics.new_lines_order[0], buf.gap_end+1);
 
         buf.apply_operation(Box::new(CursorRight(1)));
-        assert_eq!(buf.metrics.linebreaks[0], 1);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
     }
 
     #[test]
@@ -341,14 +347,32 @@ mod test {
         buf.apply_operation(Box::new(InsertChar('0')));
 
         buf.apply_operation(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.linebreaks[0], 1);
-        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
+        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
 
         buf.apply_operation(Box::new(DeleteBack::new(1)));
-        assert_eq!(buf.metrics.linebreaks.len(), 0);
+        assert_eq!(buf.metrics.new_lines_order.len(), 0);
 
         buf.undo_operation();
-        assert_eq!(buf.metrics.linebreaks[0], 1);
-        assert_eq!(buf.metrics.linebreaks_mirror[&buf.metrics.linebreaks[0]], 0);
+        assert_eq!(buf.metrics.new_lines_order[0], 1);
+        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
+    }
+
+    #[test]
+    fn get_line() {
+        let mut buf = TextBuffer::new();
+        buf.apply_operation(Box::new(InsertChar('0')));
+        buf.apply_operation(Box::new(InsertChar('1')));
+        buf.apply_operation(Box::new(InsertChar('2')));
+        buf.apply_operation(Box::new(InsertLinebreak));
+        buf.apply_operation(Box::new(InsertChar('3')));
+
+        assert_eq!(current_line(buf.cursor, &buf.metrics),1);
+
+        buf.apply_operation(Box::new(CursorLeft(1)));
+        assert_eq!(current_line(buf.cursor, &buf.metrics),1);
+
+        buf.apply_operation(Box::new(CursorLeft(1)));
+        assert_eq!(current_line(buf.cursor, &buf.metrics),0);
     }
 }
