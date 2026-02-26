@@ -1,4 +1,5 @@
-use crate::textedit::buffer::TBMetrics;
+use std::collections::BTreeSet;
+use crate::textedit::buffer::TextBuffer;
 use crate::textedit::fixed_char;
 
 pub enum TBOperationError {
@@ -10,25 +11,27 @@ pub enum TBOperationError {
 }
 pub trait TextBufferOperation {
     fn modifies(&self) -> bool { true }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError>;
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError>;
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError>;
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError>;
 }
 
 pub struct InsertChar(pub char);
 
 impl TextBufferOperation for InsertChar {
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        if *gap_end-*cursor < 1 { return Err(TBOperationError::GapTooSmall { required: 1 }); }
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        let cursor = buffer.get_cursor();
+        if buffer.get_gap_end()-cursor < 1 { return Err(TBOperationError::GapTooSmall { required: 1 }); }
+
         let slice = &vec![self.0 as fixed_char];
-        content[*cursor..(*cursor+1)].copy_from_slice(slice);
-        metrics.length += 1;
-        *cursor += 1;
+        buffer.get_content_mut()[cursor..(cursor+1)].copy_from_slice(slice);
+        *buffer.get_length_mut() += 1;
+        *buffer.get_cursor_mut() += 1;
         Ok(())
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        if *cursor == 0 { return Err(TBOperationError::MovesOutOfBounds); }
-        metrics.length -= 1;
-        *cursor -= 1;
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        if buffer.get_cursor() == 0 { return Err(TBOperationError::MovesOutOfBounds); }
+        *buffer.get_length_mut() -= 1;
+        *buffer.get_cursor_mut() -= 1;
         Ok(())
     }
 }
@@ -36,57 +39,66 @@ impl TextBufferOperation for InsertChar {
 pub struct InsertLinebreak;
 
 impl TextBufferOperation for InsertLinebreak {
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        metrics.set_linebreak_raw(*cursor);
-        InsertChar('\n').apply(cursor, gap_end, content, metrics)
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        InsertChar('\n').apply(buffer)?;
+        buffer.set_linebreak_at(buffer.get_cursor()-1);
+        Ok(())
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        let res = InsertChar('\n').undo(cursor, gap_end, content, metrics);
-        metrics.remove_linebreak_raw(*cursor);
-        res
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        InsertChar('\n').undo(buffer)?;
+        buffer.remove_linebreak_at(buffer.get_cursor());
+        Ok(())
     }
 }
 
 
 
-pub struct DeleteBack(pub usize, Option<Vec<fixed_char>>);
+pub struct DeleteBack {
+    count: usize,
+    removed: Option<Vec<fixed_char>>
+}
 impl DeleteBack {
-    pub fn new(count: usize) -> Self { Self(count, None) }
+    pub fn new(count: usize) -> Self { Self { count, removed: None } }
 }
 
 impl TextBufferOperation for DeleteBack {
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        let n = self.0;
-        if *cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        let n = self.count;
+        let cursor = buffer.get_cursor();
+        if cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
 
-        let moved = &content[(*cursor-n)..*cursor];
+        let content = buffer.get_content();
+        let moved = content[(cursor-n)..cursor].to_vec();
+
         for (i, ch) in moved.iter().enumerate() {
             if *ch == '\n' as fixed_char {
-                metrics.remove_linebreak_raw(*cursor-n+i);
+                buffer.remove_linebreak_at(cursor-n+i);
             }
         }
-        self.1 = Some(Vec::from(moved.clone()));
 
-        metrics.length -= n;
-        *cursor -= n;
+        self.removed = Some(Vec::from(moved));
+
+        *buffer.get_cursor_mut() -= n;
+        *buffer.get_length_mut() -= n;
 
         Ok(())
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        let n = self.0;
-        if *gap_end-*cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        let n = self.count;
+        let cursor = buffer.get_cursor();
+        if buffer.get_gap_end()-cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
 
-        if self.1.is_none() { return Err(TBOperationError::LogicError(Some("no string found, operation hasn't been applied".to_string())))}
+        if self.removed.is_none() { return Err(TBOperationError::LogicError(Some("no string found, operation hasn't been applied".to_string())))}
 
-        for (i, ch) in self.1.as_ref().unwrap().iter().enumerate() {
+        for (i, ch) in self.removed.as_ref().unwrap().iter().enumerate() {
             if *ch == '\n' as fixed_char {
-                metrics.set_linebreak_raw(*cursor+i);
+                buffer.set_linebreak_at(cursor+i);
             }
         }
 
-        content[*cursor..(*cursor+n)].copy_from_slice( self.1.as_ref().unwrap());
-        metrics.length += n;
-        *cursor += n;
+        buffer.get_content_mut()[cursor..(cursor+n)].copy_from_slice(self.removed.as_ref().unwrap());
+        *buffer.get_length_mut() += n;
+        *buffer.get_cursor_mut()+= n;
 
         Ok(())
     }
@@ -97,39 +109,39 @@ impl InsertString {
 }
 
 impl TextBufferOperation for InsertString {
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
         let n = self.0.len();
-        if *gap_end-*cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
+        let cursor = buffer.get_cursor();
+        if buffer.get_gap_end()-cursor < n { return Err(TBOperationError::GapTooSmall { required: n }); }
 
         for (i, ch) in self.0.iter().enumerate() {
             if *ch == '\n' as fixed_char {
-                metrics.set_linebreak_raw(*cursor+i);
+                buffer.set_linebreak_at(cursor+i);
             }
         }
 
-        content[*cursor..(*cursor + self.0.len())].copy_from_slice(&self.0);
-        metrics.length += n;
-        *cursor += n;
+        buffer.get_content_mut()[cursor..(cursor + n)].copy_from_slice(&self.0);
+        *buffer.get_length_mut() += n;
+        *buffer.get_cursor_mut() += n;
 
         Ok(())
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
         let n = self.0.len();
-        if *cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
+        let cursor = buffer.get_cursor();
+        if cursor < n { return Err(TBOperationError::MovesOutOfBounds); }
 
         for (i, ch) in self.0.iter().enumerate() {
             if *ch == '\n' as fixed_char {
-                metrics.remove_linebreak_raw(*cursor-n+i);
-            }
+                buffer.remove_linebreak_at(cursor-n+i);
+           }
         }
 
-        metrics.length -= n;
-        *cursor -= n;
+        *buffer.get_length_mut() -= n;
+        *buffer.get_cursor_mut() -= n;
         Ok(())
     }
 }
-
-
 
 
 
@@ -139,40 +151,44 @@ impl TextBufferOperation for InsertString {
 pub struct CursorRight(pub usize);
 pub struct CursorLeft(pub usize);
 
-fn _cursor_right(count: usize, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-    if (*cursor+count) > metrics.length { return Err(TBOperationError::MovesOutOfBounds); }
+fn _cursor_right(count: usize, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+    let cursor = buffer.get_cursor();
+    let gap_end = buffer.get_gap_end();
+    if (cursor+count) > buffer.get_length() { return Err(TBOperationError::MovesOutOfBounds); }
 
-    let moved = &content[*gap_end..(*gap_end+count)].to_vec();
+    let moved = &buffer.get_content_mut()[gap_end..(gap_end+count)].to_vec();
     for (i, ch) in moved.iter().enumerate() {
         if *ch == '\n' as fixed_char {
-            let gap_index = *gap_end+i;
-            metrics.remove_linebreak_raw(gap_index);
-            metrics.set_linebreak_raw(*cursor+i);
+            let gap_index = gap_end+i;
+            buffer.remove_linebreak_at(gap_index);
+            buffer.set_linebreak_at(cursor+i);
         }
     }
 
-    content[*cursor..(*cursor + count)].copy_from_slice(&moved);
+    buffer.get_content_mut()[cursor..(cursor + count)].copy_from_slice(moved);
 
-    *cursor += count;
-    *gap_end += count;
+    *buffer.get_cursor_mut() += count;
+    *buffer.get_gap_end_mut() += count;
     Ok(())
 }
-fn _cursor_left(count: usize, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-    if *cursor < count { return Err(TBOperationError::MovesOutOfBounds); }
+fn _cursor_left(count: usize, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+    let cursor = buffer.get_cursor();
+    let gap_end = buffer.get_gap_end();
+    if cursor < count { return Err(TBOperationError::MovesOutOfBounds); }
 
-    let moved = &content[(*cursor-count)..*cursor].to_vec();
+    let moved = &buffer.get_content_mut()[(cursor-count)..cursor].to_vec();
     for (i, ch) in moved.iter().enumerate() {
         if *ch == '\n' as fixed_char {
-            let gap_index = (*cursor-count) + i;
-            metrics.remove_linebreak_raw(gap_index);
-            metrics.set_linebreak_raw((*gap_end-count)+i);
+            let gap_index = (cursor-count) + i;
+            buffer.remove_linebreak_at(gap_index);
+            buffer.set_linebreak_at((buffer.get_gap_end()-count)+i);
         }
     }
 
-    content[(*gap_end-count)..*gap_end].copy_from_slice(&moved);
+    buffer.get_content_mut()[(gap_end-count)..gap_end].copy_from_slice(moved);
 
-    *gap_end -= count;
-    *cursor -= count;
+    *buffer.get_cursor_mut() -= count;
+    *buffer.get_gap_end_mut() -= count;
     Ok(())
 }
 
@@ -180,11 +196,11 @@ impl TextBufferOperation for CursorRight {
     fn modifies(&self) -> bool {
         true
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-       _cursor_right(self.0, cursor, gap_end, content, metrics)
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+       _cursor_right(self.0, buffer)
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        _cursor_left(self.0, cursor, gap_end, content, metrics)
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        _cursor_left(self.0, buffer)
     }
 }
 
@@ -192,10 +208,10 @@ impl TextBufferOperation for CursorLeft {
     fn modifies(&self) -> bool {
         true
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        _cursor_left(self.0, cursor, gap_end, content, metrics)
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        _cursor_left(self.0, buffer)
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        _cursor_right(self.0, cursor, gap_end, content, metrics)
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        _cursor_right(self.0, buffer)
     }
 }

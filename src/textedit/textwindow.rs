@@ -12,6 +12,7 @@ use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
 use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
 use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
+// use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
 enum Mode {
@@ -91,19 +92,19 @@ impl TextWindow {
         match (key, modifiers) {
             (_, KeyModifiers::CONTROL) => match key {
                 KeyCode::Char('[') => self.mode = Mode::Normal,
-                KeyCode::Char('z') => self.tb.undo_operation(),
+                KeyCode::Char('z') => self.tb.undo(),
                 _ => ()
             },
             (KeyCode::Char('['), _) => self.mode = Mode::Normal,
 
             (KeyCode::Backspace, _) => {
-                self.tb.apply_operation(Box::new(DeleteBack::new(1)));
+                self.tb.apply(Box::new(DeleteBack::new(1)));
             }
             (KeyCode::Enter, _) => {
-                self.tb.apply_operation(Box::new(InsertLinebreak));
+                self.tb.apply(Box::new(InsertLinebreak));
             }
             (KeyCode::Char(ch), _) => {
-                self.tb.apply_operation(Box::new(InsertChar(ch)));
+                self.tb.apply(Box::new(InsertChar(ch)));
             }
             (KeyCode::Esc, _) => self.mode = Mode::Normal,
             _ => ()
@@ -131,11 +132,11 @@ impl TextWindow {
             }
 
 
-            (KeyCode::Char('h'), _) => { self.tb.apply_operation(Box::new(CursorLeft(1))); }
-            (KeyCode::Char('j'), _) => { self.tb.apply_operation(Box::new(LineMovement::down(1))); }
-            (KeyCode::Char('k'), _) => { self.tb.apply_operation(Box::new(LineMovement::up(1))); }
-            (KeyCode::Char('l'), _) => { self.tb.apply_operation(Box::new(CursorRight(1))); }
-            (KeyCode::Char('$'), _) => { self.tb.apply_operation(Box::new(EndOfLine::new())); }
+            (KeyCode::Char('h'), _) => { self.tb.apply(Box::new(CursorLeft(1))); }
+            (KeyCode::Char('j'), _) => { self.tb.apply(Box::new(LineMovement::down(1))); }
+            (KeyCode::Char('k'), _) => { self.tb.apply(Box::new(LineMovement::up(1))); }
+            (KeyCode::Char('l'), _) => { self.tb.apply(Box::new(CursorRight(1))); }
+            (KeyCode::Char('$'), _) => { self.tb.apply(Box::new(EndOfLine::new())); }
             //
             // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
             // (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }

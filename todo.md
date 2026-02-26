@@ -3,8 +3,11 @@ last updated 2.22.2026 10:07pm
 
 ---
 
-## rewrites
-- buffer (become gap buffer)
+## current
+- give operations direct access to textbuffer
+- File wrapper for textbuffer (manages creation, save state)
+
+# next goals
 
 ## primary
 - add nav to layout

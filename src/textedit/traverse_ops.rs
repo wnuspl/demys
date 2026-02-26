@@ -1,11 +1,11 @@
-use crate::textedit::buffer::TBMetrics;
+use crate::textedit::buffer::TextBuffer;
 use crate::textedit::fixed_char;
 use crate::textedit::operation::{CursorLeft, CursorRight, TBOperationError, TextBufferOperation};
 use crate::textedit::operation::TBOperationError::MovesOutOfBounds;
 
-pub fn current_line(cursor: usize, metrics: &TBMetrics) -> usize {
-    let ordered = metrics.get_new_line_order();
-    if ordered.len() == 0 { return 0; }
+pub fn current_line(cursor: usize, buffer: &mut TextBuffer) -> usize {
+    let ordered = buffer.get_new_lines();
+    if ordered.len() == 1 { return 0; }
     let next_line = ordered.iter().position(|lb| *lb > cursor);
     if let Some(next_line) = next_line {
         next_line-1
@@ -36,9 +36,13 @@ impl TextBufferOperation for LineMovement {
     fn modifies(&self) -> bool {
         false
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        let current_line = current_line(*cursor, metrics);
-        let current_line_start = metrics.get_new_line_order()[current_line];
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        let cursor = buffer.get_cursor();
+        let current_line = current_line(cursor, buffer);
+
+        let ordered = buffer.get_new_lines();
+        let current_line_start = ordered[current_line];
+
 
         let target_line = if self.down {
             current_line + self.count
@@ -47,23 +51,24 @@ impl TextBufferOperation for LineMovement {
             current_line - self.count
         };
 
-        if let Some(target_line_start) = metrics.get_new_line_order().get(target_line) {
+
+        if let Some(target_line_start) = ordered.get(target_line) {
             let to_target_line = if self.down {
-                target_line_start-*gap_end
+                target_line_start-buffer.get_gap_end()
             } else {
-                *cursor-target_line_start
+                cursor-target_line_start
             };
 
 
             let target_line_end;
-            if let Some(after_line_start) = metrics.get_new_line_order().get(target_line + 1) {
+            if let Some(after_line_start) = ordered.get(target_line + 1) {
                 target_line_end = after_line_start-1;
             } else {
-                target_line_end = content.len();
+                target_line_end = buffer.get_length_raw();
             }
 
             let to_next_line_end = target_line_end-target_line_start;
-            let to_current_col = *cursor-current_line_start; // cursor movement to get to current col
+            let to_current_col = cursor-current_line_start; // cursor movement to get to current col
             let col_move = std::cmp::min(to_next_line_end, to_current_col);
 
 
@@ -73,15 +78,15 @@ impl TextBufferOperation for LineMovement {
                 Box::new(CursorLeft(to_target_line - col_move))
             };
             self.op = Some(op);
-            self.op.as_mut().unwrap().apply(cursor, gap_end, content, metrics)
+            self.op.as_mut().unwrap().apply(buffer)
         } else {
             Err(MovesOutOfBounds)
         }
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
         if self.op.is_none() { return Err(TBOperationError::LogicError(None)); }
 
-        self.op.as_mut().unwrap().undo(cursor, gap_end, content, metrics)
+        self.op.as_mut().unwrap().undo(buffer)
     }
 }
 
@@ -103,24 +108,25 @@ impl TextBufferOperation for EndOfLine {
     fn modifies(&self) -> bool {
         false
     }
-    fn apply(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
-        let current_line = current_line(*cursor, metrics);
+    fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
+        let cursor = buffer.get_cursor();
+        let current_line = current_line(cursor, buffer);
 
-        if let Some(next_line_start) = metrics.get_new_line_order().get(current_line + 1) {
+        if let Some(next_line_start) = buffer.get_new_lines().get(current_line + 1) {
             // move to next_line_start-1
 
-            let subop = CursorRight((next_line_start-1)-*gap_end);
+            let subop = CursorRight((next_line_start-1)-buffer.get_gap_end());
             self.0 = Some(subop);
-            self.0.as_mut().unwrap().apply(cursor, gap_end, content, metrics)
+            self.0.as_mut().unwrap().apply(buffer)
         } else {
             // move to length-gap_end -1
-            let subop = CursorRight(metrics.length-*cursor);
+            let subop = CursorRight(buffer.get_length()-cursor);
             self.0 = Some(subop);
-            self.0.as_mut().unwrap().apply(cursor, gap_end, content, metrics)
+            self.0.as_mut().unwrap().apply(buffer)
         }
     }
-    fn undo(&mut self, cursor: &mut usize, gap_end: &mut usize, content: &mut Vec<fixed_char>, metrics: &mut TBMetrics) -> Result<(), TBOperationError> {
+    fn undo(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
         if self.0.is_none() { return Err(TBOperationError::LogicError(None)); }
-        self.0.as_mut().unwrap().undo(cursor, gap_end, content, metrics)
+        self.0.as_mut().unwrap().undo(buffer)
     }
 }
