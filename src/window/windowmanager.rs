@@ -1,31 +1,21 @@
-use std::collections::{HashMap, VecDeque};
-use crate::window::{TestWindow, Window, WindowEvent, WindowRequest};
-use std::error::Error;
-use std::hash::Hash;
-use std::io::{Stdout, Write};
-use std::path::PathBuf;
-use crossterm::cursor::{Hide, MoveTo, Show};
-use crossterm::{queue, QueueableCommand};
-use crossterm::event::{KeyCode, KeyModifiers, ModifierKeyCode};
-use crossterm::terminal::{Clear, ClearType};
-use crate::event::{EventPoster, EventReceiver, Uuid};
+use crate::event::{EventPoster, Uuid};
 use crate::fswindow::FSWindow;
-use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::plot::Plot;
 use crate::popup::PopUp;
-use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::style::ThemeColor;
+use crate::style::{Canvas, StyleAttribute, StyledText};
 use crate::window::command::Command;
+use crate::window::layout::{BorderSpace, Layout, WindowSpace};
 use crate::window::tab::TabWindow;
 use crate::window::windowcontainer::{OrderedWindowContainer, WindowContainer};
+use crate::window::{Window, WindowEvent, WindowRequest};
+use crossterm::event::{KeyCode, KeyModifiers};
+use std::path::PathBuf;
 
 pub struct WindowManager {
     container: OrderedWindowContainer,
     layout: Layout,
     current_dir: PathBuf,
-    active: bool,
-
-    require_reset: bool
 }
 
 
@@ -36,6 +26,7 @@ impl Window for WindowManager {
     }
     fn event(&mut self, mut event: WindowEvent) {
         if let WindowEvent::Input { key:KeyCode::End, modifiers:KeyModifiers::CONTROL }  = event {
+            // force quit
             self.container.post(WindowRequest::RemoveSelfWindow);
             return;
         }
@@ -130,7 +121,9 @@ impl Window for WindowManager {
 
             if let WindowRequest::RemoveSelfWindow = e {
                 self.layout.grid.remove_minor(0);
-                self.layout.generate();
+                if self.container.window_count() >= 0 {
+                    self.generate_layout();
+                }
             }
 
             if let WindowRequest::Command(command) = e {
@@ -183,8 +176,6 @@ impl WindowManager {
             container: OrderedWindowContainer::new(),
             layout,
             current_dir: PathBuf::new(),
-            active: true,
-            require_reset: false,
         }
     }
 

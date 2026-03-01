@@ -47,7 +47,7 @@ fn main() {
     let _ = enable_raw_mode();
     let _ = execute!(
         stdout,
-        EnterAlternateScreen,
+        // EnterAlternateScreen,
         Hide
     );
     let _drop = TuiGuard;
