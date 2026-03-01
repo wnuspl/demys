@@ -1,8 +1,9 @@
+use std::fs;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use crate::textedit::buffer::TextBuffer;
-use crate::textedit::operation::TextBufferOperation;
+use crate::textedit::operation::{CursorLeft, InsertString, TextBufferOperation};
 
 pub struct TextFile {
     path: PathBuf,
@@ -12,10 +13,19 @@ pub struct TextFile {
 
 impl From<PathBuf> for TextFile {
     fn from(path: PathBuf) -> Self {
+        let mut buffer = TextBuffer::new();
+        let mut saved = false;
+        if fs::exists(&path).unwrap() {
+            let content = fs::read_to_string(&path).unwrap();
+            buffer.apply(Box::new(InsertString::new(content)));
+            let length = buffer.get_length();
+            buffer.apply(Box::new(CursorLeft(length)));
+            saved = true;
+        }
         Self {
-            path: path.clone(),
-            buffer: path.into(),
-            saved: true
+            path,
+            buffer,
+            saved
         }
     }
 }

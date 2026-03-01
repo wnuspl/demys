@@ -51,16 +51,6 @@ pub struct TextBuffer {
     metrics: Metrics,
 }
 
-
-impl From<PathBuf> for TextBuffer {
-    fn from(path: PathBuf) -> Self {
-        let content = fs::read_to_string(path).unwrap();
-        let mut tb = TextBuffer::new();
-        tb.apply(Box::new(InsertString::new(content)));
-        tb
-    }
-}
-
 impl TextBuffer {
     const DEFAULT_GAP_SIZE: usize = 200;
     pub fn new() -> TextBuffer {
