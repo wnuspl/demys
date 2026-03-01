@@ -76,28 +76,33 @@ impl TextBuffer {
             }
         }
     }
-    pub fn apply(&mut self, mut operation: Box<dyn TextBufferOperation>) {
+    pub fn apply(&mut self, mut operation: Box<dyn TextBufferOperation>) -> Result<(), TBOperationError> {
         let result = operation.apply(self);
 
         if let Err(error) = result {
-            if let Ok(()) = self.handle_operation_error(error) {
-                self.apply(operation);
+            match self.resolve_operation_error(error) {
+                Ok(()) => self.apply(operation),
+                Err(e) => Err(e)
             }
         } else {
             self.operations.push(operation);
+            Ok(())
         }
     }
-    pub fn undo(&mut self) {
+    pub fn undo(&mut self) -> Result<Box<dyn TextBufferOperation>, TBOperationError> {
         let operation = self.operations.pop();
         if let Some(mut operation) = operation {
             let result = operation.undo(self);
-
-            // handle error?
-            // this should never happen
+            match result {
+                Ok(()) => Ok(operation),
+                Err(e) => Err(e)
+            }
+        } else {
+            Err(TBOperationError::LogicError(Some("nothing to undo".into())))
         }
     }
 
-    fn handle_operation_error(&mut self, error: TBOperationError) -> Result<(), Box<dyn Error>> {
+    fn resolve_operation_error(&mut self, error: TBOperationError) -> Result<(), TBOperationError> {
         match error {
             TBOperationError::GapTooSmall { required } => {
                 let arg = if required > Self::DEFAULT_GAP_SIZE {
@@ -108,14 +113,7 @@ impl TextBuffer {
                 self.realloc_gap(arg);
                 Ok(())
             },
-            TBOperationError::MovesOutOfBounds => Err("cannot recover".into()),
-            TBOperationError::LogicError(message) => {
-                if let Some(message) = message {
-                    panic!("{}", message);
-                } else {
-                    panic!();
-                }
-            }
+            error => Err(error)
         }
     }
 

@@ -194,7 +194,7 @@ fn _cursor_left(count: usize, buffer: &mut TextBuffer) -> Result<(), TBOperation
 
 impl TextBufferOperation for CursorRight {
     fn modifies(&self) -> bool {
-        true
+        false
     }
     fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
        _cursor_right(self.0, buffer)
@@ -206,7 +206,7 @@ impl TextBufferOperation for CursorRight {
 
 impl TextBufferOperation for CursorLeft {
     fn modifies(&self) -> bool {
-        true
+        false
     }
     fn apply(&mut self, buffer: &mut TextBuffer) -> Result<(), TBOperationError> {
         _cursor_left(self.0, buffer)

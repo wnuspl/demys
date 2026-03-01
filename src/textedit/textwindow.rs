@@ -11,6 +11,7 @@ use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
 use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
+use crate::textedit::text_file::TextFile;
 use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
 // use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
 use crate::window::{WindowRequest, Window, WindowEvent};
@@ -41,7 +42,7 @@ impl Default for TextWindowSettings {
 }
 
 pub struct TextWindow {
-    tb: TextBuffer,
+    file: TextFile,
     poster: Option<EventPoster<WindowRequest, Uuid>>,
     name: String,
     mode: Mode,
@@ -57,14 +58,14 @@ pub struct TextWindow {
 // TEXT TAB IMPL
 // Holds text buffers
 impl TextWindow {
-    pub fn new(tb: TextBuffer) -> TextWindow {
+    pub fn new(file: TextFile) -> TextWindow {
         let def_name = "[untitled]".to_string();
-        TextWindow { tb, focused: false, poster: None, mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0, unsaved_popup: Self::unsaved_popup(&def_name), name: def_name}
+        TextWindow { file, focused: false, poster: None, mode: Mode::Normal, settings: TextWindowSettings::default(), scroll: 0, unsaved_popup: Self::unsaved_popup(&def_name), name: def_name}
     }
     pub fn from_file(path: PathBuf) -> TextWindow {
         let name = path.file_name().unwrap().to_string_lossy().into();
-        let mut tb = TextBuffer::from(path);
-        let mut tw = Self::new(tb);
+        let file = TextFile::from(path);
+        let mut tw = Self::new(file);
         tw.name = name;
         tw
     }
@@ -92,19 +93,19 @@ impl TextWindow {
         match (key, modifiers) {
             (_, KeyModifiers::CONTROL) => match key {
                 KeyCode::Char('[') => self.mode = Mode::Normal,
-                KeyCode::Char('z') => self.tb.undo(),
+                KeyCode::Char('z') => self.file.undo(),
                 _ => ()
             },
             (KeyCode::Char('['), _) => self.mode = Mode::Normal,
 
             (KeyCode::Backspace, _) => {
-                self.tb.apply(Box::new(DeleteBack::new(1)));
+                self.file.apply(Box::new(DeleteBack::new(1)));
             }
             (KeyCode::Enter, _) => {
-                self.tb.apply(Box::new(InsertLinebreak));
+                self.file.apply(Box::new(InsertLinebreak));
             }
             (KeyCode::Char(ch), _) => {
-                self.tb.apply(Box::new(InsertChar(ch)));
+                self.file.apply(Box::new(InsertChar(ch)));
             }
             (KeyCode::Esc, _) => self.mode = Mode::Normal,
             _ => ()
@@ -114,7 +115,7 @@ impl TextWindow {
         match (key, modifiers) {
             (key, KeyModifiers::CONTROL) => match key {
                 KeyCode::Char('s') => {
-                    // self.tb.save();
+                    self.file.save();
                 }
                 _ => ()
             }
@@ -132,11 +133,11 @@ impl TextWindow {
             }
 
 
-            (KeyCode::Char('h'), _) => { self.tb.apply(Box::new(CursorLeft(1))); }
-            (KeyCode::Char('j'), _) => { self.tb.apply(Box::new(LineMovement::down(1))); }
-            (KeyCode::Char('k'), _) => { self.tb.apply(Box::new(LineMovement::up(1))); }
-            (KeyCode::Char('l'), _) => { self.tb.apply(Box::new(CursorRight(1))); }
-            (KeyCode::Char('$'), _) => { self.tb.apply(Box::new(EndOfLine::new())); }
+            (KeyCode::Char('h'), _) => { self.file.apply(Box::new(CursorLeft(1))); }
+            (KeyCode::Char('j'), _) => { self.file.apply(Box::new(LineMovement::down(1))); }
+            (KeyCode::Char('k'), _) => { self.file.apply(Box::new(LineMovement::up(1))); }
+            (KeyCode::Char('l'), _) => { self.file.apply(Box::new(CursorRight(1))); }
+            (KeyCode::Char('$'), _) => { self.file.apply(Box::new(EndOfLine::new())); }
             //
             // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
             // (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }
@@ -165,19 +166,18 @@ impl TextWindow {
     }
 
     fn try_quit(&mut self) {
-        // if self.tb.saved {
+        if self.file.saved() {
             self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
-        // } else {
-        //     self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
-        // }
+        } else {
+            self.poster.as_mut().unwrap().post(WindowRequest::AddPopup(Some(Self::unsaved_popup(&self.name))));
+        }
     }
 
 }
 
 impl Window for TextWindow {
     fn name(&self) -> String {
-        // let saved_symbol = if self.tb.saved { "" } else { "*" };
-        let saved_symbol = "$$";
+        let saved_symbol = if self.file.saved() { "" } else { "*" };
         format!("{}{}", saved_symbol, self.name)
     }
     fn input_bypass(&self) -> bool {
@@ -205,10 +205,10 @@ impl Window for TextWindow {
             }
             WindowEvent::Command(cmd) => {
                 if cmd == "w" {
-                    // self.tb.save();
+                    self.file.save();
                 }
                 if cmd == "wq" {
-                    // self.tb.save();
+                    self.file.save();
                     self.poster.as_mut().unwrap().post(WindowRequest::RemoveSelfWindow);
                 }
                 if cmd == "q!" {
@@ -237,7 +237,7 @@ impl Window for TextWindow {
         // write text and line number
         canvas.move_to(Plot::new(0,0));
         // let text = self.tb.wrap_display(self.scroll, canvas.get_dim().col - 3);
-        let (text, mut cursor) = wrap_content(self.tb.string(), *canvas.get_dim(), self.tb.get_cursor());
+        let (text, mut cursor) = wrap_content(self.file.buffer().string(), *canvas.get_dim(), self.file.buffer().get_cursor());
 
         // which lines are shown
 

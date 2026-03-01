@@ -44,10 +44,10 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     // init terminal
     let mut stdout = stdout();
-    let _ = crossterm::terminal::enable_raw_mode();
+    let _ = enable_raw_mode();
     let _ = execute!(
         stdout,
-        // EnterAlternateScreen,
+        EnterAlternateScreen,
         Hide
     );
     let _drop = TuiGuard;
