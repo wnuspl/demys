@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::error::Error;
 use std::fs::File;
 use std::path::PathBuf;
+use std::slice::Iter;
 use crate::plot::Plot;
 use crate::textedit::fixed_char;
 use crate::textedit::operation::{TextBufferOperation, TBOperationError, InsertString};
@@ -10,32 +11,26 @@ use crate::textedit::operation::{TextBufferOperation, TBOperationError, InsertSt
 struct Metrics {
     pub length: usize,
     new_lines_order: Vec<usize>,
-    new_lines_raw: HashMap<usize, usize>, //gap pos to count
 }
 
 impl Metrics {
-    pub fn set_linebreak_raw(&mut self, mut gap_index: usize) {
-        gap_index += 1;
+    pub fn set_linebreak(&mut self, mut gap_index: usize) {
         let i = self.new_lines_order.iter().position(|lb| {
             lb > &gap_index
         });
         if let Some(i) = i {
-            self.new_lines_raw.insert(gap_index, i);
             self.new_lines_order.insert(i, gap_index);
         } else {
-            self.new_lines_raw.insert(gap_index, self.new_lines_order.len());
             self.new_lines_order.push(gap_index);
         }
     }
-    pub fn remove_linebreak_raw(&mut self, mut gap_index: usize) {
-        gap_index += 1;
-        if let Some(order) = self.new_lines_raw.remove(&gap_index) {
-            self.new_lines_order.remove(order);
+    pub fn remove_linebreak(&mut self, gap_index: usize) {
+        let i = self.new_lines_order.iter().position(|lb| {
+            lb == &gap_index
+        });
+        if let Some(i) = i {
+            self.new_lines_order.remove(i);
         }
-    }
-    pub fn remove_linebreak_order(&mut self, order: usize) {
-        let gap_index = self.new_lines_order.remove(order);
-        self.new_lines_raw.remove(&gap_index);
     }
 
     pub fn get_new_line_order(&self) -> &Vec<usize> {
@@ -61,8 +56,7 @@ impl TextBuffer {
             operations: Vec::new(),
             metrics: Metrics {
                 length: 0,
-                new_lines_order: vec![0],
-                new_lines_raw: HashMap::from([(0, 0)]),
+                new_lines_order: Vec::new(),
             }
         }
     }
@@ -140,14 +134,25 @@ impl TextBuffer {
         &mut self.metrics.length
     }
 
-    pub fn get_new_lines(&self) -> &Vec<usize> {
-        &self.metrics.get_new_line_order()
+    pub fn get_linebreak_iter(&self) -> Iter<usize> {
+
+        self.metrics.get_new_line_order().iter()
     }
-    pub fn set_linebreak_at(&mut self, gap_index: usize) {
-        self.metrics.set_linebreak_raw(gap_index);
+    pub fn get_linebreak(&self, order: usize) -> Option<usize> {
+        if order == self.metrics.get_new_line_order().len() {
+            return Some(self.get_length_raw());
+        }
+        if let Some(i) = self.metrics.get_new_line_order().get(order) {
+            Some(*i)
+        } else {
+            None
+        }
     }
-    pub fn remove_linebreak_at(&mut self, gap_index: usize) {
-        self.metrics.remove_linebreak_raw(gap_index);
+    pub fn set_linebreak(&mut self, gap_index: usize) {
+        self.metrics.set_linebreak(gap_index);
+    }
+    pub fn remove_linebreak(&mut self, gap_index: usize) {
+        self.metrics.remove_linebreak(gap_index);
     }
 
 
@@ -170,6 +175,13 @@ impl TextBuffer {
         if self.gap_end-self.cursor >= size { return; } // don't un realloc?
         let diff = size - (self.gap_end-self.cursor);
         self.content.splice(self.cursor..self.cursor, vec![' ' as fixed_char; diff]);
+
+        for lb in self.metrics.new_lines_order.iter_mut() {
+            if *lb >= self.gap_end {
+                *lb += diff;
+            }
+        }
+
         self.gap_end += diff;
     }
 }
@@ -321,8 +333,8 @@ mod test {
 
         let string1 = "foobar".to_string();
 
-        // buf.realloc_gap(1);
-        // assert_eq!(buf.gap_end-buf.cursor, 1);
+        buf.realloc_gap(1);
+        assert_eq!(buf.gap_end-buf.cursor, 1);
 
         buf.apply(Box::new(InsertString::new(string1.clone())));
         assert!(buf.gap_end-buf.cursor>2); // meaning it fully realloced
@@ -330,57 +342,6 @@ mod test {
     }
 
 
-    #[test]
-    fn linebreaks_tracked() {
-        let mut buf = TextBuffer::new();
-        buf.apply(Box::new(InsertChar('0')));
-
-        buf.apply(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.new_lines_order[1], 2);
-        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[1]], 1);
-
-        buf.apply(Box::new(InsertChar('1')));
-
-        assert_eq!(buf.metrics.new_lines_order[1], 2);
-        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[1]], 1);
-
-        buf.undo();
-        buf.undo();
-        assert_eq!(buf.metrics.new_lines_order.len(), 0);
-    }
-
-    #[test]
-    fn linebreaks_tracked_across_gap() {
-        let mut buf = TextBuffer::new();
-        buf.apply(Box::new(InsertChar('0')));
-
-        buf.apply(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.new_lines_order[0], 1);
-        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
-
-        buf.apply(Box::new(CursorLeft(1)));
-        assert_eq!(buf.metrics.new_lines_order[0], buf.gap_end+1);
-
-        buf.apply(Box::new(CursorRight(1)));
-        assert_eq!(buf.metrics.new_lines_order[0], 1);
-    }
-
-    #[test]
-    fn linebreaks_tracked_across_delete() {
-        let mut buf = TextBuffer::new();
-        buf.apply(Box::new(InsertChar('0')));
-
-        buf.apply(Box::new(InsertLinebreak));
-        assert_eq!(buf.metrics.new_lines_order[0], 1);
-        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
-
-        buf.apply(Box::new(DeleteBack::new(1)));
-        assert_eq!(buf.metrics.new_lines_order.len(), 0);
-
-        buf.undo();
-        assert_eq!(buf.metrics.new_lines_order[0], 1);
-        assert_eq!(buf.metrics.new_lines_raw[&buf.metrics.new_lines_order[0]], 0);
-    }
 
     #[test]
     fn get_line() {
@@ -398,5 +359,63 @@ mod test {
 
         buf.apply(Box::new(CursorLeft(1)));
         // assert_eq!(current_line(buf.cursor, &buf.metrics),0);
+    }
+
+
+
+
+
+
+
+
+
+    #[test]
+    fn linebreak_basic() {
+        let mut buf = TextBuffer::new();
+        buf.apply(Box::new(InsertLinebreak));
+
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 0);
+
+        buf.apply(Box::new(InsertLinebreak));
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 1);
+    }
+
+    #[test]
+    fn linebreak_removed() {
+        let mut buf = TextBuffer::new();
+        buf.apply(Box::new(InsertLinebreak));
+
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 0);
+
+        buf.undo();
+        assert_eq!(buf.get_linebreak_iter().len(), 0);
+
+        buf.apply(Box::new(InsertLinebreak));
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 0);
+
+        buf.apply(Box::new(DeleteBack::new(1)));
+        assert_eq!(buf.get_linebreak_iter().len(), 0);
+    }
+
+
+    #[test]
+    fn cursor_shifts_linebreak() {
+        let mut buf = TextBuffer::new();
+        let string1 = "hello".to_string();
+        buf.apply(Box::new(InsertString::new(string1.clone())));
+
+        buf.apply(Box::new(InsertLinebreak));
+
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 5);
+
+
+        buf.apply(Box::new(CursorLeft(1)));
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), buf.get_gap_end());
+
+        buf.apply(Box::new(CursorRight(1)));
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), 5);
+
+        buf.apply(Box::new(CursorLeft(2)));
+        assert_eq!(*buf.get_linebreak_iter().next().unwrap(), buf.get_gap_end()+1);
     }
 }

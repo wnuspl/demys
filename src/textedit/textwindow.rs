@@ -10,9 +10,9 @@ use crate::style::{Canvas, StyleAttribute, StyledText, ThemeColor};
 use crate::alert::Alert;
 use crate::textedit::buffer::TextBuffer;
 use crate::textedit::buffer_display::wrap_content;
-use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
+use crate::textedit::operation::{CursorLeft, CursorRight, DeleteBack, DoubleChar, InsertChar, InsertLinebreak, InsertString, TextBufferOperation};
 use crate::textedit::text_file::TextFile;
-use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
+use crate::textedit::traverse_ops::{EndOfLine, LineMovement, StartOfLine};
 // use crate::textedit::traverse_ops::{EndOfLine, LineMovement};
 use crate::window::{WindowRequest, Window, WindowEvent};
 
@@ -105,6 +105,7 @@ impl TextWindow {
                 self.file.apply(Box::new(InsertLinebreak));
             }
             (KeyCode::Char(ch), _) => {
+                // self.file.apply(DoubleChar(ch));
                 self.file.apply(Box::new(InsertChar(ch)));
             }
             (KeyCode::Esc, _) => self.mode = Mode::Normal,
@@ -138,6 +139,7 @@ impl TextWindow {
             (KeyCode::Char('k'), _) => { self.file.apply(Box::new(LineMovement::up(1))); }
             (KeyCode::Char('l'), _) => { self.file.apply(Box::new(CursorRight(1))); }
             (KeyCode::Char('$'), _) => { self.file.apply(Box::new(EndOfLine::new())); }
+            (KeyCode::Char('^'), _) => { self.file.apply(Box::new(StartOfLine::new())); }
             //
             // (KeyCode::Char('s'), _) => { self.tb.seek_word(); }
             // (KeyCode::Char('w'), _) => { self.tb.next_word_space(); }
@@ -152,15 +154,15 @@ impl TextWindow {
             //     self.tb.cursor_move_by(None, Some(1));
             //     self.mode = Mode::Insert;
             // }
-            // (KeyCode::Char('A'), _) => {
-            //     self.tb.cursor_end_of_line();
-            //     self.mode = Mode::Insert;
-            // }
-            // (KeyCode::Char('o'), _) => {
-            //     self.tb.cursor_end_of_line();
-            //     self.tb.insert("\n");
-            //     self.mode = Mode::Insert;
-            // }
+            (KeyCode::Char('A'), _) => {
+                self.file.apply(Box::new(EndOfLine::new()));
+                self.mode = Mode::Insert;
+            }
+            (KeyCode::Char('o'), _) => {
+                self.file.apply(Box::new(EndOfLine::new()));
+                self.file.apply(Box::new(InsertLinebreak));
+                self.mode = Mode::Insert;
+            }
             _ => ()
         }
     }
